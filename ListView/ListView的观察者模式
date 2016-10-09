@@ -1,0 +1,92 @@
+
+
+## ListView的观察者模式
+
+notifyDataSetChanged定义在BaseAdapter里代码如下
+
+```java
+public void registerDataSetObserver(DataSetObserver observer) {
+        mDataSetObservable.registerObserver(observer);
+    }
+
+    public void unregisterDataSetObserver(DataSetObserver observer) {
+        mDataSetObservable.unregisterObserver(observer);
+    }
+
+    /**
+     * Notifies the attached observers that the underlying data has been changed
+     * and any View reflecting the data set should refresh itself.
+     */
+    public void notifyDataSetChanged() {
+        mDataSetObservable.notifyChanged();
+    }
+
+```
+然后进入到notifyChanged()方法中看一下，显然它定义在DataSetObservable里
+在这个更个方法里，循环调用里所有观察者（Observer）的onChanged方法。
+```
+public class DataSetObservable extends Observable<DataSetObserver> {
+
+    public void notifyChanged() {
+        synchronized(mObservers) {
+            // since onChanged() is implemented by the app, it could do anything, including
+            // removing itself from {@link mObservers} - and that could cause problems if
+            // an iterator is used on the ArrayList {@link mObservers}.
+            // to avoid such problems, just march thru the list in the reverse order.
+            for (int i = mObservers.size() - 1; i >= 0; i--) {
+                mObservers.get(i).onChanged();
+            }
+        }
+    }
+}
+```
+
+那这些观察者们是哪里来的呢？其实就在setAdapter()方法里，来看一下这个方法的实现。
+
+```
+@Override
+    public void setAdapter(ListAdapter adapter) {
+    // 如果有了adapter那么先注销
+        if (mAdapter != null && mDataSetObserver != null) {
+            mAdapter.unregisterDataSetObserver(mDataSetObserver);
+        }
+        if (mAdapter != null) {
+                    mAreAllItemsSelectable = mAdapter.areAllItemsEnabled();
+                    mOldItemCount = mItemCount;
+                    mItemCount = mAdapter.getCount();
+                    checkFocus();
+                    // 创建一个观察者
+                    mDataSetObserver = new AdapterDataSetObserver();
+                    //注册观察者
+                    mAdapter.registerDataSetObserver(mDataSetObserver);
+
+                } else {
+
+                }
+                // 请求Layout
+                requestLayout();
+}
+```
+那么这个AdapterDataSetObserver又是什么呢？看一下他的源码它是ABSListView的内部类。
+这个观察者也有onChanged()方法。AdapterDataSetObserver()也有onChange()方法和requestLayout()方法。
+但是子类重写了啊，调用的时候调哪个？哈哈，super.onChanged()父类子类一起调啊。
+
+```
+class AdapterDataSetObserver extends AdapterView<ListAdapter>.AdapterDataSetObserver {
+       @Override
+       public void onChanged() {
+           super.onChanged();
+           if (mFastScroll != null) {
+               mFastScroll.onSectionsChanged();
+           }
+       }
+
+       @Override
+       public void onInvalidated() {
+           super.onInvalidated();
+           if (mFastScroll != null) {
+               mFastScroll.onSectionsChanged();
+           }
+       }
+   }
+```

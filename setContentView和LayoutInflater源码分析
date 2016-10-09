@@ -1,0 +1,152 @@
+
+本博客摘录自工匠若水的博客：http://blog.csdn.net/yanbober/article/details/45970721
+
+Activity的源码路径为/aosp/frameworks/base/core/java/android/app/Activity.java
+首先来看setContentView的源码，这个源码在Activity里
+```
+public void setContentView(int layoutResID) {
+       getWindow().setContentView(layoutResID);
+       initWindowDecorActionBar();
+   }
+
+   public void setContentView(View view) {
+       getWindow().setContentView(view);
+       initWindowDecorActionBar();
+   }
+
+   public void setContentView(View view, ViewGroup.LayoutParams params) {
+       getWindow().setContentView(view, params);
+       initWindowDecorActionBar方法，这里先不做讨论。();
+   }
+```
+setContentView有三个重载函数，可通过传入LayoutID和view来设置View。
+在这三个方法中Activity都先调用了getWindow()的setContentView()方法
+至于initWindowDecorActionBar方法，这里先不做讨论。
+
+## 然后说一下Window
+/aosp/frameworks/base/core/java/android/view/Window.java
+/aosp/frameworks/base/core/java/com/android/internal/policy/PhoneWindow.java
+1. Window是一个抽象类
+2. PhoneWindow是Window的具体实现类。
+3. DecorView继承自FrameLayout，是所有Activity的根View。
+
+## getWindow的setContentView方法
+这个方法在Window的具体实现类的PhoneWindow里
+
+```
+@Override
+    public void setContentView(int layoutResID) {
+        // Note: FEATURE_CONTENT_TRANSITIONS may be set in the process of installing the window
+        // decor, when theme attributes and the like are crystalized. Do not check the feature
+        // before this happens.
+        if (mContentParent == null) {
+        //  如果为空，安装装饰
+            installDecor();
+        } else if (!hasFeature(FEATURE_CONTENT_TRANSITIONS)) {
+        // 如果没有此属性，移除所有View。
+            mContentParent.removeAllViews();
+        }
+
+        if (hasFeature(FEATURE_CONTENT_TRANSITIONS)) {
+        // 如果有此属性，变换Scene
+            final Scene newScene = Scene.getSceneForLayout(mContentParent, layoutResID,
+                    getContext());
+            transitionTo(newScene);
+        } else {
+            否则，inflate布局。
+            mLayoutInflater.inflate(layoutResID, mContentParent);
+        }
+        mContentParent.requestApplyInsets();
+        final Callback cb = getCallback();
+        if (cb != null && !isDestroyed()) {
+            cb.onContentChanged();
+        }
+        mContentParentExplicitlySet = true;
+    }
+```
+
+由于setContentView(View view)方法内部是调用setContentView(View view, ViewGroup.LayoutParams params)方法，
+并将params设置为MATCH_PARENT，所以只分析第二个的代码
+
+```
+@Override
+    public void setContentView(View view) {
+        setContentView(view, new ViewGroup.LayoutParams(MATCH_PARENT, MATCH_PARENT));
+}
+  ```
+  ```
+    @Override
+    public void setContentView(View view, ViewGroup.LayoutParams params) {
+        // Note: FEATURE_CONTENT_TRANSITIONS may be set in the process of installing the window
+        // decor, when theme attributes and the like are crystalized. Do not check the feature
+        // before this happens.
+        if (mContentParent == null) {
+            installDecor();
+        } else if (!hasFeature(FEATURE_CONTENT_TRANSITIONS)) {
+            mContentParent.removeAllViews();
+        }
+
+        if (hasFeature(FEATURE_CONTENT_TRANSITIONS)) {
+            view.setLayoutParams(params);
+            final Scene newScene = new Scene(mContentParent, view);
+            transitionTo(newScene);
+        } else {
+            mContentParent.addView(view, params);
+        }
+        final Callback cb = getCallback();
+        if (cb != null && !isDestroyed()) {
+            cb.onContentChanged();
+        }
+    }
+```
+传进来的LayoutID是一个布局文件的ID，里边可能有多个View。但是这个方法传进来的就是一个view不用解析。
+直接 add到mContentParent里就行。
+那么这个mContentParent是谁？installDecor()方法就会返回mContentParent、
+说严禁点是installDecor内部调用的generateLayout()方法返回的。该方法的源码很长，咱们精简着看
+```
+        TypedArray a = getWindowStyle();
+
+      // 根据style进行一番设置
+        if (a.getBoolean(R.styleable.Window_windowNoTitle, false)) {
+            requestFeature(FEATURE_NO_TITLE);
+        } else if (a.getBoolean(R.styleable.Window_windowActionBar, false)) {
+            // Don't allow an action bar if there is no title.
+            requestFeature(FEATURE_ACTION_BAR);
+        }
+        int layoutResource;
+        int features = getLocalFeatures();
+
+        // 根据features设置
+
+        mDecor.startChanging();
+        mDecor.onResourcesLoaded(mLayoutInflater, layoutResource);
+
+        ViewGroup contentParent = (ViewGroup)findViewById(ID_ANDROID_CONTENT);
+        if (contentParent == null) {
+            throw new RuntimeException("Window couldn't find content container view");
+        }
+//      最后返回contentParent，就是设置好好根视图了。
+        return contentParent，;
+    }
+
+```
+
+
+然后看一下LayoutInflater
+它的源码地址是 /aosp/frameworks/base/core/java/android/view/LayoutInflater.java
+获取LayoutInflater的实例一般有两种方法
+```
+LayoutInflater inflater = LayoutInflater.from(Context context);
+LayoutInflater inflater = (LayoutInflater) context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+```
+ from方法的源码如下,可见其内部也是调用了上述第二种方法。
+ ```
+ public static LayoutInflater from(Context context) {
+         LayoutInflater LayoutInflater =
+                 (LayoutInflater) context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+         if (LayoutInflater == null) {
+             throw new AssertionError("LayoutInflater not found.");
+         }
+         return LayoutInflater;
+     }
+ ```
