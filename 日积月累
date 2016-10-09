@@ -82,7 +82,7 @@ public static void loop() {
         }
 }
 ```
-
+变了
 
 匿名内部类 隐式持有外部类的引用
 
