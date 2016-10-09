@@ -1,0 +1,114 @@
+# 日积月累
+1. View 是有postDelayed（）方法的
+2. 如下布局的宽高是不管用的，因为它没有父布局
+```
+<Button xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="300dp"
+    android:layout_height="80dp"
+    android:text="Button" >
+</Button>
+```
+如果想让其管用，外面必须嵌套一层别的布局。这时Button的大小管用了，但是外面的RelativeLayout大小却不管用。但为什么使用setContentView() 方法的时候管用呢，因为默认偷偷在外面嵌套了一层FramLayout。
+
+```
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent" >
+
+    <Button
+        android:layout_width="300dp"
+        android:layout_height="80dp"
+        android:text="Button" >
+    </Button>
+
+</RelativeLayout>
+```
+
+3. Hanler的构造方法如下 （来自张鸿洋的2014-08-07博客）
+
+```
+final MessageQueue mQueue;
+final Looper mLooper;
+final Callback mCallback;
+final boolean mAsynchronous;
+
+public Handler(Callback callback, boolean async) {
+    mLooper = Looper.myLooper();
+    if (mLooper == null) {
+        throw new RuntimeException(
+            "Can't create handler inside thread that has not called Looper.prepare()");
+    }
+    mQueue = mLooper.mQueue;
+    mCallback = callback;
+    mAsynchronous = async;
+  }
+```
+Handler类的mLooper和mQueue都来自于Looper。因为Looper.prepare()在一个线程中只能调用一次，所以MessageQueue在一个线程中只会存在一个。在当前UI线程调用了Looper.prepare()和Looper.loop()方法
+Hanlder发出去的消息最终通过mQueue.enqueueMessage()保存到消息队列当中
+最后通过loop()方法取出，然后调用msg.target.dispatchMessage(msg)方法，而dispatchMessage方法又调用了handleMessage方法，这个方法是一个空方法，在创建handler的时候会被重写。
+
+然而消息对象msg是如何从子线程跑到主线程的，并没有说清楚。
+
+Looper的构造方法，有消息队列mQueue和当前线程mThread
+
+```
+private Looper(boolean quitAllowed) {
+        mQueue = new MessageQueue(quitAllowed);
+        mRun = true;
+        mThread = Thread.currentThread();
+}
+```
+loop方法拿到Looper的MessageQueue，然后不断queue.next()取消息和msg.target.dispatchMessage(msg)发消息。msg里有what和obj
+
+```
+public static void loop() {
+        final Looper me = myLooper();
+        if (me == null) {
+            throw new RuntimeException("No Looper; Looper.prepare() wasn't called on this thread.");
+        }
+        final MessageQueue queue = me.mQueue;
+        Binder.clearCallingIdentity();
+        final long ident = Binder.clearCallingIdentity();
+
+        for (;;) {
+            Message msg = queue.next();
+            if (msg == null) {
+                // No message indicates that the message queue is quitting.
+                return;
+            }
+            msg.target.dispatchMessage(msg);
+            final long newIdent = Binder.clearCallingIdentity();
+            msg.recycle();
+        }
+}
+```
+
+
+匿名内部类 隐式持有外部类的引用
+
+在一个线程里创建的变量，在另一个线程里可以使用么？
+如果是全局变量，两个线程同时修改呢？能改么？
+
+线程空间和进程空间  哪些是共享的，哪些不是共享的
+买电影票的问题，多个线程可以同时操作一个变量。
+
+
+4.  PackageManagerService PKMS
+    ActivityManagerService AMS
+
+5. 进程间通信 AIDL 或者 Messager 张鸿洋博客2015-07-23
+6. 谷歌Samples关于 null 的写法，是null在前。
+   如果有可能为空的值要用equals方法，更应该在前了。
+```
+if (null == source)
+{
+    break;
+}
+```
+
+7. Window是一个抽象类，PhoneWindow是其唯一的实现类（亲儿子）,Window是太上皇位子高没有实权。
+8. 内部类默认可以使用外部类的成员变量，说明内部类引用外部类了。
+9. 被观察者（Observable）数据变化时，通知观察者(Observe).在ListView中，Adapter是被观察者，当list数据变化时，通知ListView。
+10. SrollView套ListView时，ListView的MatchParent属性不管用。其高度为一个Item的高度。
+11. ListView局部刷新，就是找到该Item的position和与之对应的数据，讲这两者都更新一下就好了。
+12. Android SDK Content 通过 “~/.android ” 进入 .android这个隐藏的文件夹， 删除“cache” 文件夹以及里面的全部内容。删除“ddms.cfg” 文件。重新打开 eclipse即可。
