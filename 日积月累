@@ -112,3 +112,14 @@ if (null == source)
 10. SrollView套ListView时，ListView的MatchParent属性不管用。其高度为一个Item的高度。
 11. ListView局部刷新，就是找到该Item的position和与之对应的数据，讲这两者都更新一下就好了。
 12. Android SDK Content 通过 “~/.android ” 进入 .android这个隐藏的文件夹， 删除“cache” 文件夹以及里面的全部内容。删除“ddms.cfg” 文件。重新打开 eclipse即可。
+
+13.  如果拿到这个值就怎样
+```
+TypedArray a = getWindowStyle();
+if (a.getBoolean(R.styleable.Window_windowNoTitle, false)) {
+       requestFeature(FEATURE_NO_TITLE);
+   } else if (a.getBoolean(R.styleable.Window_windowActionBar, false)) {
+       // Don't allow an action bar if there is no title.
+       requestFeature(FEATURE_ACTION_BAR);
+   }
+```
