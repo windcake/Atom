@@ -20,3 +20,5 @@ Handler handler = new Handler() {
 EventBus.getDefault().register(this);
 EventBus.getDefault().unregister(this);
 ```
+
+5. 非静态内部类

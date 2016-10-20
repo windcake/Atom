@@ -123,3 +123,30 @@ if (a.getBoolean(R.styleable.Window_windowNoTitle, false)) {
        requestFeature(FEATURE_ACTION_BAR);
    }
 ```
+
+14. singleTask的应用，判断异地登录连发三个请求，返回都是-1003，如果不做判断，就会打开三个登录窗口。
+
+15. 忽略点九图片检查和加大内存的代码
+
+```
+aaptOptions
+{
+    cruncherEnabled = false
+    useNewCruncher = false
+}
+dexOptions {  javaMaxHeapSize "4g" }
+
+16. Android画一个Activity的时间是16ms
+
+
+
+
+
+
+
+
+
+
+
+
+```

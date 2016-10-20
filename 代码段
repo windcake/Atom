@@ -1,0 +1,103 @@
+###代码段
+@(代码整理)
+1.  #### 再按一次退出程序
+```
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (keyCode == KeyEvent.KEYCODE_BACK
+                && event.getAction() == KeyEvent.ACTION_DOWN) {
+            if ((System.currentTimeMillis() - exitTime) > 2000) {
+                Toast.makeText(getApplicationContext(), "再按一次退出程序",
+                               Toast.LENGTH_SHORT).show();
+                exitTime = System.currentTimeMillis();
+            } else {
+                finish();
+                System.exit(0);
+            }
+            return true;
+        }
+        return super.onKeyDown(keyCode, event);
+    }
+```
+
+2. #### 制作缩略图
+```
+private void createThumbnail(String path)
+    {
+        BitmapFactory.Options options = new BitmapFactory.Options();
+        //是否只采集图像的边界信息
+        options.inJustDecodeBounds = true;
+        //第一次采样:只采集边界信息，不采集像素信息
+        BitmapFactory.decodeFile(path, options);
+//      采集到现在图片的宽高
+        int width = options.outWidth;
+        int height = options.outHeight;
+//      宽高的比例
+        int widthRatio = 0;
+        int heightRatio = 0;
+        int sampleSize = 0;
+//      如果宽或者高大于1000，才去压缩
+        if ((width >= 1200) || (height >= 1200))
+        {
+            if (width >= height)
+            {
+                widthRatio = width / 1000;
+                sampleSize = widthRatio;
+            } else
+            {
+                heightRatio = height / 1000;
+                sampleSize = heightRatio;
+            }
+        } else
+        {
+            sampleSize = 1;
+        }
+
+        //第二次采样
+        options.inSampleSize = sampleSize;
+        options.inPreferredConfig = Bitmap.Config.RGB_565;
+        options.inJustDecodeBounds = false;
+
+        Bitmap bitmap = BitmapFactory.decodeFile(path, options);
+//     截取文件名
+        String fileName = path.substring(path.lastIndexOf("/") + 1);
+
+        SDCardUtils.saveBitmapToSDCardPrivateCacheDir(bitmap, fileName, mContext);
+
+        String addrres = SDCardUtils.getSDCardPrivateCacheDir(mContext);
+
+        Log.i("aaaaa", "图片存储的地址是" + addrres);
+
+    }
+
+```
+
+3. #### 进度条的制作
+Item的根布局是RelativeLayout的时候无法测量，在android系统版本在17级以下（包含17的时候），RelativeLayout.measure（w,h）时，会出现空指针，只能外层再套一个其他Layout，这是硬伤
+```
+// array文件里放好drawable
+<string-array name="fubiao_images">
+        <item>@drawable/c01</item>
+        <item>@drawable/c02</item>
+        <item>@drawable/c03</item>
+</string-array>
+//Activity代码里获取
+TypedArray ar = getResources().obtainTypedArray(R.array.fubiao_images);
+fubiaojindu.setImageDrawable(ar.getDrawable(a);
+```
+
+4. ListView动态设置高度
+
+```
+public void listViewBug(ListView view,Adapter adapter) {
+		int totalHeight = 0;
+		for (int i = 0; i < adapter.getCount(); i++) {
+			View listItem = adapter.getView(i, null, view);
+			listItem.measure(0, 0);
+			totalHeight += listItem.getMeasuredHeight();
+		}
+		ViewGroup.LayoutParams params = view.getLayoutParams();
+		params.height = totalHeight + (view.getDividerHeight() *(adapter.getCount() - 1));
+		view.setLayoutParams(params);
+	}
+```
