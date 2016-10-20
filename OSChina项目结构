@@ -1,0 +1,16 @@
+
+
+1. AppStart是LAUCHER页800ms后跳转到MainActivity
+
+2. MainActivity继承了BaseActivity，BaseActivity里把init方法分别放到了不同的生命周期里
+   这样在MainActivity里就不再重写生命周期，而是重写init方法
+
+3. 导航是一个fragment放了一个布局，上边的导航按钮是自定义的Button
+  此Fragment在improve-main-nav-NavFragment
+  此Button在improve-main-nav-NavigationButton
+
+4. 如果在一个项目里，有两个以上的界面有相同的逻辑，那么久应该把它抽象出来，弄一个base
+    比如此项目里的BaseViewPagerFragment
+
+5. 我如果自己定义一个SuperRefreshLayout，那这里边就可以写很多自己的方法，结合项目实际情况，所有的
+   地方都可以用这些方法，

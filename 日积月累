@@ -136,17 +136,26 @@ aaptOptions
 }
 dexOptions {  javaMaxHeapSize "4g" }
 
+```
+
+
 16. Android画一个Activity的时间是16ms
 
+17. 内存抖动：Memory Monitor里出现毛刺，短时间大量分配内又触发GC
 
+18.Android 6.0已经不支持HttpClient，需要在build.gradle中加入 useLibrary 'org.apache.http.legacy'
 
+19. 官方有TextUtils类，可判断是否为空isEmpty
 
+20. 60帧/秒才流畅，所以要保证16ms/帧，也就是16ms画完一帧。
 
+21. Service里也不能进行耗时操作，必须开启子线程否则ANR
 
-
-
-
-
-
-
-```
+22. Android图片占用内存的问题
+一张512*512  150KB PNG格式图片和一张512*512 100KB 压缩比是8的JPG格式的图片,加载到内存中,也就是加载到一个Bitmap中,哪个占用的内存大? 这个问题似乎有点难回答,测试一下就知道了.
+好了,按照要求我准备了三张图片,
+1. 512*512px, 114KB, PNG
+2. 512*512px, 138KB, JPG ,压缩比 12
+3. 512*512px, 57KB, JPG,压缩比 8
+接下来是写一个Demo,一个Bitmap加载不同的图片,然后使用bitmap.getRowBytes() * bitmap.getHeight();得到图片的内存占用情况.(这么简单的程序就不放出来献丑了)
+得到的数字居然都是一样的. 刚好是4MB,为什么是4MB? 512*512*4*2,这么算出来的,Bitmap默认加载使用ARGB_8888,每个像素会占用4byte,因为每个像素有两个Chanel.
