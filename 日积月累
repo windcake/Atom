@@ -152,10 +152,43 @@ dexOptions {  javaMaxHeapSize "4g" }
 21. Service里也不能进行耗时操作，必须开启子线程否则ANR
 
 22. Android图片占用内存的问题
-一张512*512  150KB PNG格式图片和一张512*512 100KB 压缩比是8的JPG格式的图片,加载到内存中,也就是加载到一个Bitmap中,哪个占用的内存大? 这个问题似乎有点难回答,测试一下就知道了.
+一张512*512  150KB PNG格式图片和一张512*512 100KB 压缩比是8的JPG格式的图片,加载到内存中,
+也就是加载到一个Bitmap中,哪个占用的内存大? 这个问题似乎有点难回答,测试一下就知道了.
 好了,按照要求我准备了三张图片,
 1. 512*512px, 114KB, PNG
 2. 512*512px, 138KB, JPG ,压缩比 12
 3. 512*512px, 57KB, JPG,压缩比 8
-接下来是写一个Demo,一个Bitmap加载不同的图片,然后使用bitmap.getRowBytes() * bitmap.getHeight();得到图片的内存占用情况.(这么简单的程序就不放出来献丑了)
-得到的数字居然都是一样的. 刚好是4MB,为什么是4MB? 512*512*4*2,这么算出来的,Bitmap默认加载使用ARGB_8888,每个像素会占用4byte,因为每个像素有两个Chanel.
+接下来是写一个Demo,一个Bitmap加载不同的图片,然后使用bitmap.getRowBytes() * bitmap.getHeight();
+得到图片的内存占用情况.(这么简单的程序就不放出来献丑了)
+得到的数字居然都是一样的. 刚好是4MB,为什么是4MB? 512*512*4*2,这么算出来的,Bitmap默认加载使用ARGB_8888,
+每个像素会占用4byte,因为每个像素有两个Chanel.
+
+23. APK文件的打包过程
+第一步：打包资源文件，生成R.java文件
+【输入】Resource文件（就是工程中res中的文件）、Assets文件（相当于另外一种资源，这种资源Android系统并不像对res中的文件那样优化它）、AndroidManifest.xml文件（包名就是从这里读取的，因为生成R.java文件需要包名）、Android基础类库（Android.jar文件）
+【输出】打包好的资源（一般在Android工程的bin目录可以看到一个叫resources.ap_的文件就是它了）、R.java文件（在gen目录中，大家应该很熟悉了）
+【工具】aapt工具，它的路径在${ANDROID_SDK_HOME}/platform-tools/aapt（如果你使用的是Windows系统，按惯例路径应该这样写：%ANDROID_SDK_HOME%\platform-tools\aapt.exe，下同）。
+第二步：处理AIDL文件，生成对应的.java文件（当然，有很多工程没有用到AIDL，那这个过程就可以省了）
+【输入】源码文件、aidl文件、framework.aidl文件
+【输出】对应的.java文件
+【工具】aidl工具
+第三步：编译Java文件，生成对应的.class文件
+【输入】源码文件（包括R.java和AIDL生成的.java文件）、库文件（.jar文件）
+【输出】.class文件
+【工具】javac工具
+第四步：把.class文件转化成Davik VM支持的.dex文件
+【输入】源码文件（包括R.java和AIDL生成的.java文件）、库文件（.jar文件）
+【输出】.class文件
+【工具】javac工具
+第五步：打包生成未签名的.apk文件
+【输入】打包后的资源文件、打包后类文件（.dex文件）、libs文件（包括.so文件，当然很多工程都没有这样的文件，如果你不使用C/C++开发的话）
+【输出】未签名的.apk文件
+【工具】apkbuilder工具
+第六步：对未签名.apk文件进行签名
+【输入】未签名的.apk文件
+【输出】签名的.apk文件
+【工具】jarsigner
+第七步：对签名后的.apk文件进行对齐处理（不进行对齐处理是不能发布到Google Market的）
+【输入】签名后的.apk文件
+【输出】对齐后的.apk文件
+【工具】zipalign工具

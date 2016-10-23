@@ -1,0 +1,18 @@
+
+
+1. 下载 Gralde压缩包，解压到某个目录
+
+2. 进入终端用vim打开 vim ./bash_profile.swp，按i进入输入模式
+
+3. 然后输入这个export GRADLE_HOME=/Users/windcake/Documents/gradle-3.1
+export PATH=$PATH:$GRADLE_HOME/bin
+
+4. 按ESC退出输入模式
+
+5. source bash_profile.swp
+
+6. gradle -v查看版本
+
+
+7. Eclipse里Export生成buil.gradle文件，还生成了gradlew脚本文件，运行这个文件生成了
+  一个gradle文件夹，里边有wrapper文件夹，这就和Android Studio的的目录里一样了。
