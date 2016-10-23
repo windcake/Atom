@@ -1,0 +1,243 @@
+
+
+# Looper的源码路径为
+aosp/frameworks/base/core/java/android/os/Looper.java
+这里面重要的只有prepare和loop方法
+## 先看prepare方法
+```
+private static void prepare(boolean quitAllowed) {
+       if (sThreadLocal.get() != null) {
+           throw new RuntimeException("Only one Looper may be created per thread");
+       }
+       sThreadLocal.set(new Looper(quitAllowed));
+   }
+```
+就是往ThreadLocal里放了一个Looper对象，并传入里一个参数。
+
+## 然后看一下Looper的构造方法
+```
+final MessageQueue mQueue;
+final Thread mThread;
+private Looper(boolean quitAllowed) {
+       mQueue = new MessageQueue(quitAllowed);
+       mThread = Thread.currentThread();
+   }
+```
+可见其构造参数初始化了mQueue和mThread。
+
+## 然后看loop方法都干了啥
+```
+public static void loop() {
+//      拿到当前的Looper对象
+       final Looper me = myLooper();
+       if (me == null) {
+           throw new RuntimeException("No Looper; Looper.prepare() wasn't called on this thread.");
+       }
+//       构造方法里初始化了mQueue
+       final MessageQueue queue = me.mQueue;
+
+       // Make sure the identity of this thread is that of the local process,
+       // and keep track of what that identity token actually is.
+       Binder.clearCallingIdentity();
+       final long ident = Binder.clearCallingIdentity();
+//      死循环，一直next拿msg
+       for (;;) {
+           Message msg = queue.next(); // might block
+           if (msg == null) {
+               // No message indicates that the message queue is quitting.
+               return;
+           }
+
+           // This must be in a local variable, in case a UI event sets the logger
+           final Printer logging = me.mLogging;
+           if (logging != null) {
+               logging.println(">>>>> Dispatching to " + msg.target + " " +
+                       msg.callback + ": " + msg.what);
+           }
+
+           final long traceTag = me.mTraceTag;
+           if (traceTag != 0) {
+               Trace.traceBegin(traceTag, msg.target.getTraceName(msg));
+           }
+           try {
+//              msg的target对象发消息
+               msg.target.dispatchMessage(msg);
+           } finally {
+               if (traceTag != 0) {
+                   Trace.traceEnd(traceTag);
+               }
+           }
+
+           if (logging != null) {
+               logging.println("<<<<< Finished to " + msg.target + " " + msg.callback);
+           }
+
+           // Make sure that during the course of dispatching the
+           // identity of the thread wasn't corrupted.
+           final long newIdent = Binder.clearCallingIdentity();
+           if (ident != newIdent) {
+               Log.wtf(TAG, "Thread identity changed from 0x"
+                       + Long.toHexString(ident) + " to 0x"
+                       + Long.toHexString(newIdent) + " while dispatching to "
+                       + msg.target.getClass().getName() + " "
+                       + msg.callback + " what=" + msg.what);
+           }
+
+           msg.recycleUnchecked();
+       }
+   }
+
+```
+ myLooper的源码如下，是拿到刚才存储进去的looper对象
+```
+public static @Nullable Looper myLooper() {
+        return sThreadLocal.get();
+    }
+```
+ 这个方法既然叫loop那一定是有循环，果然for(;;)是个死循环
+ 拿到在构造方法里初始化的mQueue,然后在循环里一直调用next方法，拿msg。
+ 然后调用msg.target.dispatchMessage(msg)方法发消息
+ 也就是自己调用target对象的方法把自己发出去，这个target是什么？
+
+## Hanlder
+
+我们先看一下Handler的构造方法
+
+```
+public Handler(Callback callback, boolean async) {
+        if (FIND_POTENTIAL_LEAKS) {
+            final Class<? extends Handler> klass = getClass();
+            if ((klass.isAnonymousClass() || klass.isMemberClass() || klass.isLocalClass()) &&
+                    (klass.getModifiers() & Modifier.STATIC) == 0) {
+                //这里让注意内存泄露
+                Log.w(TAG, "The following Handler class should be static or leaks might occur: " +
+                    klass.getCanonicalName());
+            }
+        }
+
+        mLooper = Looper.myLooper();
+        if (mLooper == null) {
+            throw new RuntimeException(
+                "Can't create handler inside thread that has not called Looper.prepare()");
+        }
+        mQueue = mLooper.mQueue;
+        mCallback = callback;
+        mAsynchronous = async;
+    }
+
+```
+这个构造方法初始化了mLooper和mQueue
+mLooper存储在ThreadLocal里
+mQueue是Looper成员变量
+
+sendMessage(Message msg)内部调用
+sendMessageDelayed(msg, 0)内部调用
+sendMessageAtTime(msg, SystemClock.uptimeMillis() + delayMillis)
+sendMessageAtTime的源码
+```
+public boolean sendMessageAtTime(Message msg, long uptimeMillis) {
+       MessageQueue queue = mQueue;
+       if (queue == null) {
+           RuntimeException e = new RuntimeException(
+                   this + " sendMessageAtTime() called with no mQueue");
+           Log.w("Looper", e.getMessage(), e);
+           return false;
+       }
+       //如果queue不为空调用
+       return enqueueMessage(queue, msg, uptimeMillis);
+   }
+
+```
+如果queue不为空调用了enqueueMessage方法
+```
+private boolean enqueueMessage(MessageQueue queue, Message msg, long uptimeMillis) {
+      msg.target = this;
+      if (mAsynchronous) {
+          msg.setAsynchronous(true);
+      }
+      return queue.enqueueMessage(msg, uptimeMillis);
+  }
+```
+在这里给msg的target赋值，
+然后把消息enqueue进消息队列里，等待被next方法取出。
+
+还记得loop方法里调用了msg.target.dispatchMessage，它的源码
+```
+public void dispatchMessage(Message msg) {
+       if (msg.callback != null) {
+           handleCallback(msg);
+       } else {
+           if (mCallback != null) {
+               if (mCallback.handleMessage(msg)) {
+                   return;
+               }
+           }
+           handleMessage(msg);
+       }
+   }
+```
+在这个方法里最终调用了handleMessage，而其是一个空方法，这个callback是什么我们稍后解释
+```
+public void handleMessage(Message msg) {
+   }
+```
+没关系，还记得我们常用的写法么？
+```
+private Handler mHandler = new Handler()
+    {
+        public void handleMessage(android.os.Message msg)
+        {
+            switch (msg.what)
+            {
+
+            }
+        };
+    };
+```
+自己重写这个方法，就可以实现自己的逻辑了。
+
+## post方法
+有的时候，我们是这样写代码的，这段代码应该是写在子线程里的。
+```
+mHandler.post(new Runnable()
+        {
+            @Override
+            public void run()
+            {
+                Log.e("TAG", Thread.currentThread().getName());
+                mTxt.setText("yoxi");
+            }
+        });
+```
+我们重写了这个run方法，来完成UI更新。
+post方法是这样的
+```
+public final boolean post(Runnable r)
+   {
+      return  sendMessageDelayed(getPostMessage(r), 0);
+   }
+```
+实际上是调用了刚才分析的发消息方法，那这个getPostMessage(r)是什么呢？
+```
+private static Message getPostMessage(Runnable r) {
+        Message m = Message.obtain();
+        m.callback = r;
+        return m;
+    }
+```
+它返回一个Message对象，Runnable对象赋值给m.callback
+好，当这样再次调用dispatchMessage方法时，就会调用handleCallback方法
+```
+private static void handleCallback(Message message) {
+       message.callback.run();
+   }
+
+```
+这个方法调用了我们刚才重写的run方法，于是完成了UI更新。
+
+
+
+整个的逻辑是在主线程（UI）中初始化handler
+在子线程中发送消息
+Looper在sThreadLocal里面，它是这样被初始化的。
+ThreadLocal<Looper> sThreadLocal = new ThreadLocal<Looper>();
