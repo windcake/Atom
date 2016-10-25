@@ -8,9 +8,12 @@ git log -p master.. origin/master 查看本地和远程的区别
 
 git merge origin/master 合并
 
-
 git status 查看状态
 
 git add  文件名
 
 git commit 提交 写好u
+
+git pull 先进行pull操作把远程的拉下来
+
+git push 再进行提交

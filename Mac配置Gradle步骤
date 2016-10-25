@@ -16,3 +16,8 @@ export PATH=$PATH:$GRADLE_HOME/bin
 
 7. Eclipse里Export生成buil.gradle文件，还生成了gradlew脚本文件，运行这个文件生成了
   一个gradle文件夹，里边有wrapper文件夹，这就和Android Studio的的目录里一样了。
+
+8. 提示Gradle版本不对，改完wrapper文件里的版本，还要改build.gradle里的版本
+
+9. 直接编译会提示SDK路径找不到，是因为local.properties文件没有，这里边写了SDK路径，
+  可以直接去Android Studio项目里拷贝
