@@ -1,0 +1,25 @@
+
+
+gradle installDebug 安装Debug包到手机
+
+一个项目有一个setting.gradle、
+包括一个顶层的 build.gradle文件、每个Module 都有自己的一个build.gradle文件。
+顶层文件的典型代码如下，它会被应用到
+```
+//编译工具类路径
+buildscript {
+    repositories {
+        jcenter()
+    }
+
+    dependencies {
+        classpath 'com.android.tools.build:gradle:1.2.3'
+    }
+}
+
+allprojects{
+    repositories{
+        jcenter()
+    }
+}
+```

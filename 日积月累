@@ -192,3 +192,5 @@ dexOptions {  javaMaxHeapSize "4g" }
 【输入】签名后的.apk文件
 【输出】对齐后的.apk文件
 【工具】zipalign工具
+
+24 DSL（领域特定语言）
