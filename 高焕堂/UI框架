@@ -1,0 +1,8 @@
+
+
+
+游戏循环（GameLoop）
+
+小线程调用postInvalidate()
+
+图是存在Buffer里的，Invalidate就是换Buffer，一个投射区，一个缓冲区。

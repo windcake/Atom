@@ -1,0 +1,6 @@
+
+
+
+Java层的Service都是由ActivityManagerService掌管，在应用层可调用
+Android框架里的startService和bindService函数绑定服务
+绑定后，可透过IBinder接口去执行其函数。

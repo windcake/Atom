@@ -1,0 +1,48 @@
+
+
+Activity自己也有startActivity方法
+startActivity看样子是Context的，Context是一个抽象类ContextImpl是它的一个具体实现类
+路径是/aosp/frameworks/base/core/java/android/app/ContextImpl.java
+startActivity（Intent intent）源码如下
+```
+public void startActivity(Intent intent) {
+      warnIfCallingFromSystemProcess();
+      startActivity(intent, null);
+  }
+```
+其内部调用了
+```
+final ActivityThread mMainThread;
+@Override
+   public void startActivity(Intent intent, Bundle options) {
+       warnIfCallingFromSystemProcess();
+
+       // Calling start activity from outside an activity without FLAG_ACTIVITY_NEW_TASK is
+       // generally not allowed, except if the caller specifies the task id the activity should
+       // be launched in.
+       if ((intent.getFlags()&Intent.FLAG_ACTIVITY_NEW_TASK) == 0
+               && options != null && ActivityOptions.fromBundle(options).getLaunchTaskId() == -1) {
+           throw new AndroidRuntimeException(
+                   "Calling startActivity() from outside of an Activity "
+                   + " context requires the FLAG_ACTIVITY_NEW_TASK flag."
+                   + " Is this really what you want?");
+       }
+       // Activity的startActivity方法内部也是调用了mInstrumentation.execStartActivity
+       mMainThread.getInstrumentation().execStartActivity(
+               getOuterContext(), mMainThread.getApplicationThread(), null,
+               (Activity) null, intent, -1, options);
+   }
+```
+mMainThread是ActivityThread类型的，其方法getInstrumentation源码如下
+
+ActivityThread类里有performLaunchActivity performResumeActivity等方法
+
+```
+//这个单词是设备 仪器 手段 的意思，它用来监控应用程序和系统的交互。
+Instrumentation mInstrumentation;
+public Instrumentation getInstrumentation()
+   {
+       return mInstrumentation;
+   }
+```
+execStartActivity在Instrumentation类里，
