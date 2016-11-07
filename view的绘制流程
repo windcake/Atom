@@ -158,17 +158,28 @@ int 4字节 bit数是4*8 左移一位是*2 左移三十位够用
 ```
 
 ## onMeasure方法
-```
+这个方法一进来调用了setMeasuredDimension（设置测量尺寸）这个方法，但它的参数却是通过调用另一个
+方法得到。
 
+```
 protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+// Dimension 尺寸维度
        setMeasuredDimension(getDefaultSize(getSuggestedMinimumWidth(), widthMeasureSpec),
                getDefaultSize(getSuggestedMinimumHeight(), heightMeasureSpec));
    }
 ```
+
 其内部调用了setMeasuredDimension，并传了两个参数。这个参数是由getDefaultSize获得的，先看这个方法
+宽度和高度都是调用了这个方法，我们以宽度为例往下分析。
+
+size:SuggestedMinimumWidth (建议最小宽度)
+measureSpec：widthMeasureSpec （宽度的MeasureSpec）
+它的逻辑是，如果MODE是未指定（UNSPECIFIED），返回值就是建议最小宽度（SuggestedMinimumWidth）
+如果是AT_MOST或者EXACTLY，返回值就是widthMeasureSpec里的size
 
 ```
-public static int getDefaultSize(int size, int measureSpec里的) {
+// 得到默认值方法
+public static int getDefaultSize(int size, int measureSpec) {
      int result = size;
      int specMode = MeasureSpec.getMode(measureSpec);
      int specSize = MeasureSpec.getSize(measureSpec);
@@ -191,19 +202,30 @@ size值是getSuggestedMinimumWidth()的返回值
 measureSpec是调用meaure的类传来的。
 
 ## 看一下getSuggestedMinimumWidth是怎么回事
+建议最小宽度方法
+如果没有背景，就是mMinWidth
+如果有背景就取 mMinWidth和背景最小宽度的最大值。
 
 ```
 protected int getSuggestedMinimumWidth() {
         return (mBackground == null) ? mMinWidth : max(mMinWidth, mBackground.getMinimumWidth());
     }
 ```
-这些都是系统默认值
-
-## onMeasure实际是调用了setMeasuredDimension方法
+这些都是系统默认值，而mMinWidth的赋值方法如下。
 
 ```
+case R.styleable.View_minWidth:
+      mMinWidth = a.getDimensionPixelSize(attr, 0);
+```
 
+## onMeasure实际是调用了setMeasuredDimension方法
+measuredWidth：通过getDefaultSize拿到系统的默认值
+measuredHeight
+
+
+```
 protected final void setMeasuredDimension(int measuredWidth, int measuredHeight) {
+// Optical bounds layout 视觉边界布局
         boolean optical = isLayoutModeOptical(this);
         if (optical != isLayoutModeOptical(mParent)) {
             Insets insets = getOpticalInsets();
@@ -229,6 +251,67 @@ protected final void setMeasuredDimension(int measuredWidth, int measuredHeight)
 这个两个值会在其对应的get方法中返回。
 比如layout中就会用到。
 所谓测量，其实就是去找这两个值，而不是真正的去量每一个像素。
+
+但是这是View默认的onMesure方法
+以上所有方法的参数都是来自measure方法里的widthMeasureSpec和heightMeasureSpec
+两个参数，但是，这两个参数是在哪里传进来的呢。
+我觉得，只有搞明白这两个参数的来源，测量过程才算真正搞明白了。
+
+measure方法的调用在ViewRootImpl类里的performTraversals（1436--2225）方法中被调用（Traversals遍历的意思）
+这是一个更高层次的调用。
+
+
+```
+ performMeasure(childWidthMeasureSpec, childHeightMeasureSpec);
+```
+```
+private void performMeasure(int childWidthMeasureSpec, int childHeightMeasureSpec) {
+       Trace.traceBegin(Trace.TRACE_TAG_VIEW, "measure");
+       try {
+           mView.measure(childWidthMeasureSpec, childHeightMeasureSpec);
+       } finally {
+           Trace.traceEnd(Trace.TRACE_TAG_VIEW);
+       }
+   }
+
+```
+以上方法的childWidthMeasureSpec是一个局部变量，通过下面方法去组装
+lp.width和lp.height在创建ViewGroup实例时等于MATCH_PARENT
+```
+mWidth = -1;
+int childWidthMeasureSpec = getRootMeasureSpec(mWidth, lp.width);
+```
+
+```
+private static int getRootMeasureSpec(int windowSize, int rootDimension) {
+      int measureSpec;
+      switch (rootDimension) {
+
+      case ViewGroup.LayoutParams.MATCH_PARENT:
+          // Window can't resize. Force root view to be windowSize.
+          measureSpec = MeasureSpec.makeMeasureSpec(windowSize, MeasureSpec.EXACTLY);
+          break;
+      case ViewGroup.LayoutParams.WRAP_CONTENT:
+          // Window can resize. Set max size for root view.
+          measureSpec = MeasureSpec.makeMeasureSpec(windowSize, MeasureSpec.AT_MOST);
+          break;
+      default:
+          // Window wants to be an exact size. Force root view to be that size.
+          measureSpec = MeasureSpec.makeMeasureSpec(rootDimension, MeasureSpec.EXACTLY);
+          break;
+      }
+      return measureSpec;
+  }
+
+```
+可以看见这个方法的注释说是用来测Root View的。上面传入参数后这个函数走的是MATCH_PARENT，
+使用MeasureSpec.makeMeasureSpec方法组装一个MeasureSpec，
+MeasureSpec的specMode等于EXACTLY，specSize等于windowSize，也就是为何根视图总是全屏的原因。
+
+
+
+应该自定义一个View，然后继承View，然后放到布局里看看会发生什么。
+
 
 
 ## ViewGroup的测量
