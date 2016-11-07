@@ -5,7 +5,7 @@
 ## measure方法
 在measure方法经过一通折腾，然后调用了onMeasure方法。
 正如其方法注释中说，实际的测量工作是在onMeasure里的，因此，只有onMeasure方法可以被
-子类继承，且必须被继承。
+子类重写，且必须被重写。
 
 ```
 /**
@@ -266,6 +266,8 @@ protected void measureChild(View child, int parentWidthMeasureSpec,
 如果ViewGroup嵌套ViewGroup怎么办，如何测量。
 
 
-
 ViewGroup的Layout过程是找到每一个子View的，上下左右的坐标值。
 然后去调用这个View的layout方法。
+layout方法中调用了setFrame()方法
+这个方法里，确定了本View四个顶点相对于父View的
+坐标值。这个坐标有了，它的位置也就知道确定了。

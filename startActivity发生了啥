@@ -46,3 +46,20 @@ public Instrumentation getInstrumentation()
    }
 ```
 execStartActivity在Instrumentation类里，
+
+
+## 一个Activity崩溃之后报的错误，这里边暴露了启动Activity的过程
+
+```
+at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:2423)
+                                                                        at android.app.ActivityThread.handleLaunchActivity(ActivityThread.java:2483)
+                                                                        at android.app.ActivityThread.access$900(ActivityThread.java:153)
+                                                                        at android.app.ActivityThread$H.handleMessage(ActivityThread.java:1349)
+                                                                        at android.os.Handler.dispatchMessage(Handler.java:102)
+                                                                        at android.os.Looper.loop(Looper.java:148)
+                                                                        at android.app.ActivityThread.main(ActivityThread.java:5438)
+                                                                        at java.lang.reflect.Method.invoke(Native Method)
+                                                                        at com.android.internal.os.ZygoteInit$MethodAndArgsCaller.run(ZygoteInit.java:739)
+                                                                        at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:629)
+
+```

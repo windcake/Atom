@@ -1,0 +1,11 @@
+
+
+## 加快Gradle的构建速度
+### 在build文件里去除lint任务
+```
+tasks.whenTaskAdded { task ->
+    if (task.name.equals("lint")) {
+        task.enabled = false
+    }
+}
+```
