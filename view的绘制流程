@@ -262,6 +262,7 @@ measure方法的调用在ViewRootImpl类里的performTraversals（1436--2225）�
 
 
 ```
+// 2024行
  performMeasure(childWidthMeasureSpec, childHeightMeasureSpec);
 ```
 ```
@@ -278,15 +279,20 @@ private void performMeasure(int childWidthMeasureSpec, int childHeightMeasureSpe
 以上方法的childWidthMeasureSpec是一个局部变量，通过下面方法去组装
 lp.width和lp.height在创建ViewGroup实例时等于MATCH_PARENT
 ```
+// 这个变量在构造方法做如下初始化
+final WindowManager.LayoutParams mWindowAttributes = new WindowManager.LayoutParams()//180
+WindowManager.LayoutParams lp = mWindowAttributes; // 1454
 mWidth = -1;
+// lp.width 是MATCH_PARENT
 int childWidthMeasureSpec = getRootMeasureSpec(mWidth, lp.width);
 ```
+这个方法将LayoutParams和MeasureSpec联系起来
 
 ```
 private static int getRootMeasureSpec(int windowSize, int rootDimension) {
       int measureSpec;
       switch (rootDimension) {
-
+//      也就是说LayoutParams的MATCH_PARENT是MeasureSpec的EXACTLY
       case ViewGroup.LayoutParams.MATCH_PARENT:
           // Window can't resize. Force root view to be windowSize.
           measureSpec = MeasureSpec.makeMeasureSpec(windowSize, MeasureSpec.EXACTLY);
@@ -304,6 +310,24 @@ private static int getRootMeasureSpec(int windowSize, int rootDimension) {
   }
 
 ```
+mWindowAttributes 通过调用如下方法得到，其实是个构造方法。
+它的两个参数都是LayoutParams.MATCH_PARENT
+
+```
+public interface WindowManager extends ViewManager {
+
+ public static class LayoutParams extends ViewGroup.LayoutParams implements Parcelable {
+   public LayoutParams() {
+//          父类是ViewGroup，注意参数是MATCH_PARENT
+             super(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
+             type = TYPE_APPLICATION;
+             format = PixelFormat.OPAQUE;
+         }
+ }
+}
+```
+
+
 可以看见这个方法的注释说是用来测Root View的。上面传入参数后这个函数走的是MATCH_PARENT，
 使用MeasureSpec.makeMeasureSpec方法组装一个MeasureSpec，
 MeasureSpec的specMode等于EXACTLY，specSize等于windowSize，也就是为何根视图总是全屏的原因。
@@ -311,6 +335,7 @@ MeasureSpec的specMode等于EXACTLY，specSize等于windowSize，也就是为何
 
 
 应该自定义一个View，然后继承View，然后放到布局里看看会发生什么。
+这样写是不对的，因为自己的View是不是已经在一个ViewGroup里了？
 
 
 

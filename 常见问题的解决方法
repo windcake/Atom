@@ -9,3 +9,62 @@ tasks.whenTaskAdded { task ->
     }
 }
 ```
+
+## 动态申请权限
+
+```
+this.jsonString = jsonString;
+
+if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
+{
+    //检查权限
+    int checkPermissionCamera = ContextCompat.checkSelfPermission(MainActivity.this,
+                                                                  Manifest.permission.CAMERA);
+
+    if (checkPermissionCamera != PackageManager.PERMISSION_GRANTED)
+    {
+        Log.i("aaaaa", "权限还没有申请");
+
+        if (ActivityCompat.shouldShowRequestPermissionRationale(MainActivity.this,
+                                                                Manifest.permission.CAMERA))
+        {
+            Log.i("aaaaa", "用户已经拒绝一次了,再次弹出授权框询问并解释为什么需要这个权限");
+
+            ActivityCompat.requestPermissions(MainActivity.this
+                                              //要申请的权限
+                    , new String[]
+                                                      {
+                                                              Manifest.permission.CAMERA
+                                                      }
+                                              //申请请求返回码
+                    , 100);
+        } else
+        {
+            //申请授权
+            Log.i("aaaaa", "申请授权");
+            ActivityCompat.requestPermissions(MainActivity.this
+                                              //要申请的权限
+                    , new String[]
+                                                      {
+                                                              Manifest.permission.CAMERA
+                                                      }
+                                              //申请请求返回码
+                    , 100);
+        }
+    } else
+    {
+        GalleryFinal.openCamera(REQUEST_CODE_CAMERA,
+                                functionConfig,
+                                mOnHanlderResultCallback);
+
+        JSONObject object = JSON.parseObject(jsonString);
+        String html = object.getString("html");
+        photoCallback = object.getString("func");
+
+        Log.i("aaaa", html + photoCallback);
+
+        photoWebview = getWebViewByOriginalUrl(html);
+    }
+} else
+{
+```
