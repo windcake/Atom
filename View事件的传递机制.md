@@ -256,16 +256,21 @@ public boolean onTouchEvent(MotionEvent event) {
                 // Throw away all previous state when starting a new touch gesture.
                 // The framework may have dropped the up or cancel event for the previous gesture
                 // due to an app switch, ANR, or some other state change.
+                // 开始一个新的触摸手势之前，要清掉之前所有的状态。
                 cancelAndClearTouchTargets(ev);
                 resetTouchState();
             }
 
             // Check for interception.
+            // 检查拦截
             final boolean intercepted;
             if (actionMasked == MotionEvent.ACTION_DOWN
                     || mFirstTouchTarget != null) {
+                // 当事件为 ACTION_DOWN，或者有touch targets，就执行如下代码。
+                //  requestDisallowInterceptTouchEvent方法
                 final boolean disallowIntercept = (mGroupFlags & FLAG_DISALLOW_INTERCEPT) != 0;
                 if (!disallowIntercept) {
+                  // 如果没有disallow就执行onInterceptTouchEvent方法，即拦截方法。
                     intercepted = onInterceptTouchEvent(ev);
                     ev.setAction(action); // restore action in case it was changed
                 } else {
@@ -274,11 +279,14 @@ public boolean onTouchEvent(MotionEvent event) {
             } else {
                 // There are no touch targets and this action is not an initial down
                 // so this view group continues to intercept touches.
+                // 没有touch targets，且不是ACTION_DOWN事件，就返回true,表示已拦截。
                 intercepted = true;
             }
 
             // If intercepted, start normal event dispatch. Also if there is already
             // a view that is handling the gesture, do normal event dispatch.
+            // 如果被拦截了，就弄一个normal的事件分发
+            // 还有如果现在正在有一个view处理这个手势也弄一个normal的事件分发
             if (intercepted || mFirstTouchTarget != null) {
                 ev.setTargetAccessibilityFocus(false);
             }
@@ -318,6 +326,7 @@ public boolean onTouchEvent(MotionEvent event) {
                         final float y = ev.getY(actionIndex);
                         // Find a child that can receive the event.
                         // Scan children from front to back.
+                        // 从前往后寻找
                         final ArrayList<View> preorderedList = buildTouchDispatchChildList();
                         final boolean customOrder = preorderedList == null
                                 && isChildrenDrawingOrderEnabled();
@@ -448,4 +457,27 @@ public boolean onTouchEvent(MotionEvent event) {
         }
         return handled;
     }
+```
+
+## requestDisallowInterceptTouchEvent设置是否禁止拦截
+
+```
+public void requestDisallowInterceptTouchEvent(boolean disallowIntercept) {
+
+       if (disallowIntercept == ((mGroupFlags & FLAG_DISALLOW_INTERCEPT) != 0)) {
+           // We're already in this state, assume our ancestors are too
+           return;
+       }
+
+       if (disallowIntercept) {
+           mGroupFlags |= FLAG_DISALLOW_INTERCEPT;
+       } else {
+           mGroupFlags &= ~FLAG_DISALLOW_INTERCEPT;
+       }
+
+       // Pass it up to our parent
+       if (mParent != null) {
+           mParent.requestDisallowInterceptTouchEvent(disallowIntercept);
+       }
+   }
 ```
