@@ -292,19 +292,13 @@ public boolean onTouchEvent(MotionEvent event) {
             }
 
             // Check for cancelation.
-            // 检查取消
             final boolean canceled = resetCancelNextUpFlag(this)
                     || actionMasked == MotionEvent.ACTION_CANCEL;
 
             // Update list of touch targets for pointer down, if needed.
-            // 给pointer down更新touch targets的列表
-            // 下面开始真正的事件分发
-
-            // setMotionEventSplittingEnabled方法可以设置这个标志
             final boolean split = (mGroupFlags & FLAG_SPLIT_MOTION_EVENTS) != 0;
             TouchTarget newTouchTarget = null;
             boolean alreadyDispatchedToNewTouchTarget = false;
-            // 如果没有被取消，且没有被拦截。
             if (!canceled && !intercepted) {
 
                 // If the event is targeting accessiiblity focus we give it to the
@@ -327,25 +321,19 @@ public boolean onTouchEvent(MotionEvent event) {
                     removePointersFromTouchTargets(idBitsToAssign);
 
                     final int childrenCount = mChildrenCount;
-                    // child个数不为0 进if
-                    if (newTouchTarget == null && childrenCount != 0)
-                     {
+                    if (newTouchTarget == null && childrenCount != 0) {
                         final float x = ev.getX(actionIndex);
                         final float y = ev.getY(actionIndex);
                         // Find a child that can receive the event.
                         // Scan children from front to back.
-                        // 从前往后寻找哪个child可以接收这个事件
+                        // 从前往后寻找
                         final ArrayList<View> preorderedList = buildTouchDispatchChildList();
                         final boolean customOrder = preorderedList == null
                                 && isChildrenDrawingOrderEnabled();
                         final View[] children = mChildren;
-
-                        // 循环
-                        for (int i = childrenCount - 1; i >= 0; i--)
-                        {
+                        for (int i = childrenCount - 1; i >= 0; i--) {
                             final int childIndex = getAndVerifyPreorderedIndex(
                                     childrenCount, i, customOrder);
-                            // 拿到  child view
                             final View child = getAndVerifyPreorderedView(
                                     preorderedList, children, childIndex);
 
@@ -353,10 +341,8 @@ public boolean onTouchEvent(MotionEvent event) {
                             // to get the event first and if not handled we will perform a
                             // normal dispatch. We may do a double iteration but this is
                             // safer given the timeframe.
-                            if (childWithAccessibilityFocus != null)
-                            {
-                                if (childWithAccessibilityFocus != child)
-                                {
+                            if (childWithAccessibilityFocus != null) {
+                                if (childWithAccessibilityFocus != child) {
                                     continue;
                                 }
                                 childWithAccessibilityFocus = null;
@@ -368,10 +354,9 @@ public boolean onTouchEvent(MotionEvent event) {
                                 ev.setTargetAccessibilityFocus(false);
                                 continue;
                             }
-                            // TouchTarget是一个ViewGroup的内部类，存了 view和pointerIdBits
+
                             newTouchTarget = getTouchTarget(child);
-                            if (newTouchTarget != null)
-                            {
+                            if (newTouchTarget != null) {
                                 // Child is already receiving touch within its bounds.
                                 // Give it the new pointer in addition to the ones it is handling.
                                 newTouchTarget.pointerIdBits |= idBitsToAssign;
@@ -379,10 +364,8 @@ public boolean onTouchEvent(MotionEvent event) {
                             }
 
                             resetCancelNextUpFlag(child);
-                            // 开始分发
                             if (dispatchTransformedTouchEvent(ev, false, child, idBitsToAssign)) {
                                 // Child wants to receive touch within its bounds.
-                                // child想要接收这个 touch
                                 mLastTouchDownTime = ev.getDownTime();
                                 if (preorderedList != null) {
                                     // childIndex points into presorted list, find original index
@@ -398,7 +381,6 @@ public boolean onTouchEvent(MotionEvent event) {
                                 mLastTouchDownX = ev.getX();
                                 mLastTouchDownY = ev.getY();
                                 newTouchTarget = addTouchTarget(child, idBitsToAssign);
-                                // 已经被分发到新的 Touch Target里去了
                                 alreadyDispatchedToNewTouchTarget = true;
                                 break;
                             }
@@ -407,16 +389,12 @@ public boolean onTouchEvent(MotionEvent event) {
                             // the flag and do a normal dispatch to all children.
                             ev.setTargetAccessibilityFocus(false);
                         }
-                        // 清空 preorderedList for循环之外了
                         if (preorderedList != null) preorderedList.clear();
                     }
 
-
-//                  没找到
                     if (newTouchTarget == null && mFirstTouchTarget != null) {
                         // Did not find a child to receive the event.
                         // Assign the pointer to the least recently added target.
-                        // 没找到接收touch event的 child
                         newTouchTarget = mFirstTouchTarget;
                         while (newTouchTarget.next != null) {
                             newTouchTarget = newTouchTarget.next;
@@ -424,7 +402,6 @@ public boolean onTouchEvent(MotionEvent event) {
                         newTouchTarget.pointerIdBits |= idBitsToAssign;
                     }
                 }
-                DOWN事件的括号
             }
 
             // Dispatch to touch targets.
@@ -504,3 +481,9 @@ public void requestDisallowInterceptTouchEvent(boolean disallowIntercept) {
        }
    }
 ```
+
+
+ View的dispatchTouchEvent中调用了onTouch和onTouchEvent，onTouch优先于onTouchEvent执行。
+ 如果在onTouch方法中通过返回true将事件消费掉，onTouchEvent将不会再执行。
+ onTouch事件得到执行有两个条件，第一mOnTouchListener的值不能为空，第二当前点击的控件必须是enable的。
+ 
