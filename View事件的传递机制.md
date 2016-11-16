@@ -459,6 +459,18 @@ public boolean onTouchEvent(MotionEvent event) {
     }
 ```
 
+ViewGroup的dispatchTouchEvent方法的执行流程
+
+整个过程先处理DOWN事件
+
+1.只有DOWN事件才把之前的状态都清掉 mFirstTouchTarget == null
+2.检查disallowIntercept（不让拦截）标志位，这个标志可以通过requestDisallowInterceptTouchEvent（请求不让拦截）方法设置
+3.执行拦截方法onInterceptTouchEvent
+4.如果没拦截，就for循环所有的child，通过点击事件的xy坐标寻找到事件分发的child
+5.然后通过child找target:newTouchTarget = getTouchTarget(child);如果找到就break循环
+6.如果没找到就执行dispatchTransformedTouchEvent把这个事件传递给这个view(这是坐标内的下一层)
+7.
+
 ## requestDisallowInterceptTouchEvent设置是否禁止拦截
 
 ```
@@ -486,4 +498,3 @@ public void requestDisallowInterceptTouchEvent(boolean disallowIntercept) {
  View的dispatchTouchEvent中调用了onTouch和onTouchEvent，onTouch优先于onTouchEvent执行。
  如果在onTouch方法中通过返回true将事件消费掉，onTouchEvent将不会再执行。
  onTouch事件得到执行有两个条件，第一mOnTouchListener的值不能为空，第二当前点击的控件必须是enable的。
- 
