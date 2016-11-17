@@ -80,7 +80,7 @@ dispatchTouchEvent方法里首先执行onTouch方法，这是一个接口里的�
 dispatchTouchEvent就直接返回true，onTouchEvent不执行。
 
 
-##  onTouchEvent
+##  onTouchEvent 默认返回true
 
 ```
 
@@ -496,5 +496,13 @@ public void requestDisallowInterceptTouchEvent(boolean disallowIntercept) {
 
 
  View的dispatchTouchEvent中调用了onTouch和onTouchEvent，onTouch优先于onTouchEvent执行。
- 如果在onTouch方法中通过返回true将事件消费掉，onTouchEvent将不会再执行。
+ 如果在onTouch方法中通过返回true将事件消费掉，onTouchEvent将不会再执行,当然click也不会再执行。
  onTouch事件得到执行有两个条件，第一mOnTouchListener的值不能为空，第二当前点击的控件必须是enable的。
+
+重写的时候别忘了调用super否则什么事件都不会派发
+
+dispatchTouchEvent在进行事件分发的时候，只有前一个action返回true，才会触发下一个action
+onTouchEvent()默认返回true
+如果返回false就会阻止派发事件，因为onTouchEvent返回false,dispatchTouchEvent就会返回false
+
+ 如果重写dispatchTouchEvent一直返回true,那么onTouchEvent的返回值将不管用。

@@ -1,0 +1,88 @@
+
+
+## Service
+1.start之后再次start只会运行一次onCreate方法，多次运行onStartCommand方法
+2.Service也在UI线程运行
+3.Service和Activity通信
+ 1.重写自己的Binder
+ 2.在onBind方法里返回这个Binder
+ 3.在Activity里重写ServiceConnection，里边会传过来刚才的Binder，然后强转为Service
+ 4.就可以操作Service对象了
+
+```
+// Service部分
+@Override
+   public IBinder onBind(Intent intent) {
+       return new MyBinder();
+   }
+
+   class MyBinder extends Binder {
+       public PlayMusicBindService getService() {
+           return PlayMusicBindService.this;
+       }
+   }
+// Activity部分
+Intent intent = new Intent();
+        intent.setClass(mContext, PlayMusicBindService.class);
+        conn = new ServiceConnection() {
+            @Override
+            public void onServiceConnected(ComponentName name, IBinder service) {
+              // 这个CONN
+                myService = ((PlayMusicBindService.MyBinder) service).getService();
+            }
+
+            @Override
+            public void onServiceDisconnected(ComponentName name) {
+                myService = null;
+            }
+        };
+//      绑定服务
+        bindService(intent, conn, Context.BIND_AUTO_CREATE);
+```
+
+## 内存优化
+
+Android图片占用内存的问题
+占用的内存=图片长度*图片宽度*单位像素占用的字节数
+一张512*512  150KB PNG格式图片和一张512*512 100KB 压缩比是8的JPG格式的图片,加载到内存中,
+也就是加载到一个Bitmap中,哪个占用的内存大? 这个问题似乎有点难回答,测试一下就知道了.
+好了,按照要求我准备了三张图片,
+1. 512*512px, 114KB, PNG
+2. 512*512px, 138KB, JPG ,压缩比 12
+3. 512*512px, 57KB, JPG,压缩比 8
+刚好是4MB,为什么是4MB? 512*512*4*2,这么算出来的,Bitmap默认加载使用ARGB_8888,
+每个像素会占用4byte,因为每个像素有两个Chanel.
+ALPHA_8 代表8位Alpha位图，只有透明度
+ARGB_4444 代表16位ARGB位图 2字节
+ARGB_8888 代表32位ARGB位图 4字节
+RGB_565 代表16位RGB位图    2字节
+BitMap优化的时候，用RGB_565
+
+显示在控件上图片的大小，是和控件一样大，还是和原图一样大？
+
+## 屏幕适配
+DPI Dot Per Inch
+PPI Pixel Per Inch
+160PPI的意思是 1英寸上有160个像素 也就是每个像素的大小大约是 1/160 inch
+这样就转换成了实际尺寸，但是并没有彻底解决屏幕适配问题。
+dp能保证同样尺寸的手机，无论屏幕分辨率是什么样，大概都显示一致。
+
+那同样分辨率，但是屏幕尺寸不一样了呢？
+
+1. 320*480，一般是3.5寸，计算点密度为√ (320^2 + 480^2) / 3.5 = 164，约等于160，1pd=1px
+2. 320*480,按4寸屏幕算，密度为 144 1个像素 1/144寸 实际像素数 = 144/160 也就是1dp = 144/160px
+在这种情况下1dp仍然是 1/160 Inch 这个是实际的英寸
+就显示效果来说，在大一点的屏幕上 1dp(1/160 Inch)所占的比例将会变小
+ dp就是实际尺寸
+
+ 如果屏幕大小一样，无论什么分辨率，显示效果应该都差不多。
+
+如果屏幕大小不一样呢？
+
+按比例转换成px才能真正解决问题
+1334/750 = 1.78
+800/480 = 1.67
+1280/720 = 1.78
+1920/1080 = 1.78
+2560/1440 = 1.78
+正常的屏幕都是 16：9的，也就是说这个比例是一定的。
