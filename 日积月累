@@ -194,3 +194,6 @@ dexOptions {  javaMaxHeapSize "4g" }
 【工具】zipalign工具
 
 24 DSL（领域特定语言）
+
+25 多用组合，少用继承。针对接口编程，不针对具体实现编程。
+  优秀框架的高可拓展性魅力来源于此
