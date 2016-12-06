@@ -194,3 +194,8 @@ dexOptions {  javaMaxHeapSize "4g" }
 【工具】zipalign工具
 
 24 DSL（领域特定语言）
+
+
+25 输出日志到文件
+
+adb logcat -v time >setting.log
