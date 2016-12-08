@@ -1,0 +1,7 @@
+
+
+
+RealCall里边的getResponseWithInterceptorChain（）里调用了chain的 proceed方法
+
+CallServerInterceptor是拦截器chain里的最后一个，它向服务器发起一个网络请求。
+其它拦截器返回的都是proceed,唯独这个拦截器返回response

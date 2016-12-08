@@ -1,0 +1,27 @@
+
+
+
+## with方法
+
+```
+public static Picasso with(Context context) {
+    if (singleton == null) {
+      synchronized (Picasso.class) {
+        if (singleton == null) {
+          singleton = new Builder(context).build();
+        }
+      }
+    }
+    return singleton;
+  }
+
+```
+单例模式，返回单例对象。
+这个单例对象是通过build模式建造的。
+
+Picasso这样使用Handler
+static final Handler HANDLER = new Handler(Looper.getMainLooper())
+
+
+JAVA的异常也需要了解一下
+OKHttp的拦截器是什么

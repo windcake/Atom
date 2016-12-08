@@ -120,7 +120,35 @@ BroadcastReceiver未在10秒内完成相关的处理
 
 ## 内存泄漏
 坏处：1.频繁GC会导致内存卡顿
-     2.
+     2.OOM直接崩溃
+
+1. Context要选对
+单例需要Context的时候，用Application的，如果用Activity的，Activity就会一直被单例引用，就泄漏了。
+这样初始化，就好了。
+```
+private LoginManager(Context context) {
+       this.mContext = context.getApplicationContext();
+   }
+```
+
+2. Handler
+非静态内部类会隐式持有外部类的对象
+退出的时候清消息
+```
+mHandler.removeCallbacksAndMessages(null);
+       mHandler=null;
+```
+3. 非静态内部类创建静态实例造成的内存泄漏
+这样静态实例就会一直引用该内部类，内部类有引用外部类，就会泄漏。
+弄成静态的就行
+
+5. 资源未关闭造成的内存泄漏
+  对于使用了BraodcastReceiver，ContentObserver，File，Cursor，Stream，Bitmap等资源的使用，
+  Cursor去查询短信，就泄漏了。
+
+4. 记得反注册 EventBus
+
+
 
 
 ## UI优化
@@ -129,7 +157,13 @@ BroadcastReceiver未在10秒内完成相关的处理
 3. 相同的用merge标签，相同布局用include
 
 
+## 冷启动
 
+冷启动速度和黑白屏问题
+
+Application里不要干那么多事
+
+window加一个backgroud，在style里加android:windowBackground
 
 
 ## JAVA基础
