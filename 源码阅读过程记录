@@ -15,3 +15,17 @@ socket 路由管理，
 代理管理，
 连接复用，
 引用计数法的垃圾清理的概念。
+
+从TCP/IP协议
+Socket
+URLConnecttion OkHttp
+Volley Rerofit
+
+ExecutorService（线程池）
+LRUCache
+
+
+Volley为什么适合数据量小而频繁的请求
+OKHttp适合什么样的呢？
+
+Glide在GIF方面为什么比Picasso有优势？
