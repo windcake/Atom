@@ -6,4 +6,6 @@ RealCall里边的getResponseWithInterceptorChain（）里调用了chain的 proc
 CallServerInterceptor是拦截器chain里的最后一个，它向服务器发起一个网络请求。
 其它拦截器返回的都是proceed,唯独这个拦截器返回response
 
-Dispatcher 只是用来记录哪个请求正在请求。。
+
+RetryAndFollowUpInterceptor
+new了一个streamAllocation
