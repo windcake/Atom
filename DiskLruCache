@@ -1,0 +1,53 @@
+
+
+
+LinkedHashMap<String, Entry> lruEntries;
+
+LruCache的文件是在内存里的，所以它的泛型是key和value, 比如常见的<String,Bitmap>
+但是磁盘缓存的文件是存在磁盘里，不能直接引用。那怎么去磁盘里找这个文件呢。
+所以我们必须有一个地方去记录磁盘里都有哪些文件以及文件名。
+journal文件就是干这个用的
+
+
+
+这里引用的是Bitmap的引用。
+
+
+
+## Journal文件是什么
+
+## open方法
+构造方法人用 private修饰的，所以提供的open方法。
+```
+private void readJournal() throws IOException {
+    StrictLineReader reader = new StrictLineReader(new FileInputStream(journalFile), Util.US_ASCII);
+    try {
+      String magic = reader.readLine();
+      String version = reader.readLine();
+      String appVersionString = reader.readLine();
+      String valueCountString = reader.readLine();
+      String blank = reader.readLine();
+// 略几行
+      int lineCount = 0;
+      while (true) {
+        try {
+          readJournalLine(reader.readLine());
+          lineCount++;
+        } catch (EOFException endOfJournal) {
+          break;
+        }
+      }
+      redundantOpCount = lineCount - lruEntries.size();
+
+      // If we ended on a truncated line, rebuild the journal before appending to it.
+      if (reader.hasUnterminatedLine()) {
+        rebuildJournal();
+      } else {
+        journalWriter = new BufferedWriter(new OutputStreamWriter(
+            new FileOutputStream(journalFile, true), Util.US_ASCII));
+      }
+    } finally {
+      Util.closeQuietly(reader);
+    }
+  }
+```

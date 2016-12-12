@@ -36,3 +36,5 @@ Glide在GIF方面为什么比Picasso有优势？
 
 一个key对应多个value是什么意思呢？
 比如缓存一个图片，它肯定是把图片分成好几份来存储。
+
+HashMap存一个BitMap存的是什么？
