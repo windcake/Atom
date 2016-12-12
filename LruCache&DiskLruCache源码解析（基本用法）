@@ -1,0 +1,134 @@
+
+
+学习这一块的源码，为以后学习其他框架打下基础。
+
+
+
+纵观整个源码，似乎并没有体现LRU算法的地方，所以玄机一定在LinkedHashMap里。
+## LinkedHashMap
+什么是双向链表结构，你可以看下图。
+
+好接下来我们分析对数据结构产生影响的put和get方法
+当我们执行map的put方法时，会在最后调用addNewEntry方法
+LinkedHashMap重写了这个方法，如下：
+```
+void addNewEntry(K key, V value, int hash, int index) {
+        LinkedEntry<K, V> header = this.header;
+
+        // Remove eldest entry if instructed to do so.
+        LinkedEntry<K, V> eldest = header.nxt;
+        if (eldest != header && removeEldestEntry(eldest)) {
+            remove(eldest.key);
+        }
+
+        // Create new entry, link it on to list, and put it into table
+        LinkedEntry<K, V> oldTail = header.prv;
+        LinkedEntry<K, V> newTail = new LinkedEntry<K,V>(
+                key, value, hash, table[index], header, oldTail);
+        table[index] = oldTail.nxt = header.prv = newTail;
+    }
+```
+执行完之后如下图：
+
+在get方法里accessOrder如果为true会执行makeTail方法
+```
+private void makeTail(LinkedEntry<K, V> e) {
+       // Unlink e
+      //  把e从链表里拿出来
+       e.prv.nxt = e.nxt;
+       e.nxt.prv = e.prv;
+
+       // Relink e as tail
+      //  然后把e放到尾部
+       LinkedEntry<K, V> header = this.header;
+       LinkedEntry<K, V> oldTail = header.prv;
+       e.nxt = header;
+       e.prv = oldTail;
+       oldTail.nxt = header.prv = e;
+       modCount++;
+   }
+
+```
+然后这里画两张图来演示一下这个过程
+
+
+这样，每put或者get一次某个Entry，它就会被放到队列的尾部。
+
+## LruCache的构造方法
+```
+public LruCache(int maxSize) {
+       if (maxSize <= 0) {
+           throw new IllegalArgumentException("maxSize <= 0");
+       }
+       this.maxSize = maxSize;
+       this.map = new LinkedHashMap<K, V>(0, 0.75f, true);
+   }
+```
+初始化了最大值，但是没有单位，是个数呢，还是kb mb gb呢，还不清楚。
+第三个参数为true代表accessOrder赋值为true
+
+
+## trimToSize
+```
+public void trimToSize(int maxSize) {
+       while (true) {
+           K key;
+           V value;
+           synchronized (this) {
+            // 省略size值的合法检查
+               if (size <= maxSize || map.isEmpty()) {
+                   break;
+               }
+
+               Map.Entry<K, V> toEvict = map.entrySet().iterator().next();
+               key = toEvict.getKey();
+               value = toEvict.getValue();
+               map.remove(key);
+               size -= safeSizeOf(key, value);
+               evictionCount++;
+           }
+           entryRemoved(true, key, value, null);
+       }
+   }
+
+```
+默认实现是entry的个数，所以实际应用中应该重写sizeOf方法
+```
+private int safeSizeOf(K key, V value) {
+       int result = sizeOf(key, value);
+       if (result < 0) {
+           throw new IllegalStateException("Negative size: " + key + "=" + value);
+       }
+       return result;
+   }
+
+ protected int sizeOf(K key, V value) {
+       return 1;
+   }
+```
+## put方法
+
+```
+public final V put(K key, V value) {
+       if (key == null || value == null) {
+           throw new NullPointerException("key == null || value == null");
+       }
+
+       V previous;
+       synchronized (this) {
+           putCount++;
+           size += safeSizeOf(key, value);
+           previous = map.put(key, value);
+           if (previous != null) {
+               size -= safeSizeOf(key, previous);
+           }
+       }
+
+       if (previous != null) {
+           entryRemoved(false, key, previous, value);
+       }
+
+       trimToSize(maxSize);
+       return previous;
+   }
+```
