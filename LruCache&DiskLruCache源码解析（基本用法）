@@ -2,15 +2,24 @@
 
 学习这一块的源码，为以后学习其他框架打下基础。
 
+## LRU
+LRU（Least Recently Used），最近最少算法。
+最近的意思是我们缓存最近使用的对象。
+最少的含义是当内存不够时，优先删除缓存中使用次数较少的对象。
+比如，画一个表 A B C D E F 。
 
+纵览整个源码，似乎并没有体现LRU算法的地方，
+但却发现缓存对象被存进了LinkedHashMap里，
+这个LinkedHashMap一定为LRU的实现默默地做了几件事。
+所以看一下LinkedHashMap暗藏了什么奥妙玄机。
+## LinkedHashMap为LRU算法做了哪些微小工作
+LinkedHashMap继承自HashMap，它内部维护了一个双向循环链表结构，如下如。
 
-纵观整个源码，似乎并没有体现LRU算法的地方，所以玄机一定在LinkedHashMap里。
-## LinkedHashMap
-什么是双向链表结构，你可以看下图。
-
+它有两种排序方法，一是按插入顺序，二是访问顺序。
 好接下来我们分析对数据结构产生影响的put和get方法
-当我们执行map的put方法时，会在最后调用addNewEntry方法
-LinkedHashMap重写了这个方法，如下：
+LRUCache的put方法内部调用了LinkedHashMap的put方法时，
+LinkedHashMap没有重写HashMap的put方法，但重写了put方法中调用的addNewEntry方法
+如下：
 ```
 void addNewEntry(K key, V value, int hash, int index) {
         LinkedEntry<K, V> header = this.header;
@@ -28,7 +37,7 @@ void addNewEntry(K key, V value, int hash, int index) {
         table[index] = oldTail.nxt = header.prv = newTail;
     }
 ```
-执行完之后如下图：
+在双向链表里加入一个 Node，执行完之后如下图：
 
 在get方法里accessOrder如果为true会执行makeTail方法
 ```
@@ -52,9 +61,13 @@ private void makeTail(LinkedEntry<K, V> e) {
 然后这里画两张图来演示一下这个过程
 
 
-这样，每put或者get一次某个Entry，它就会被放到队列的尾部。
+这样，每put或者get一次某个Entry，它都会被放到队列的尾部。
+也就是每当我们新加入一个，或者通过get方法使用一次内存中的对象，它都会被放到尾部。
+到这里已经完成了最近部分。
+并且最少使用的也被排在了前边。
 
-## LruCache的构造方法
+## 缓存大小的设置和清理工作
+LruCache的构造方法
 ```
 public LruCache(int maxSize) {
        if (maxSize <= 0) {
@@ -65,10 +78,11 @@ public LruCache(int maxSize) {
    }
 ```
 初始化了最大值，但是没有单位，是个数呢，还是kb mb gb呢，还不清楚。
-第三个参数为true代表accessOrder赋值为true
+第三个参数为true代表accessOrder赋值为true，也就是按访问顺序排序。
 
 
 ## trimToSize
+每执行完一次put或者get方法，或者resize缓存空间值的时候，都会执行trimToSize方法
 ```
 public void trimToSize(int maxSize) {
        while (true) {
@@ -92,6 +106,13 @@ public void trimToSize(int maxSize) {
    }
 
 ```
+一进来是一个死循环，跳出循环的条件是size <= maxSize或者map为空了。
+否则就去执行map.entrySet().iterator().next()迭代，这个就是最近最少使用的Entry
+然后删除，
+删除之后重新计算size
+
+
+
 默认实现是entry的个数，所以实际应用中应该重写sizeOf方法
 ```
 private int safeSizeOf(K key, V value) {
@@ -188,4 +209,4 @@ public final V get(K key) {
     }
 ```
 
-## 
+##
