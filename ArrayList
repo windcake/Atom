@@ -1,0 +1,188 @@
+
+基于Android6.0源码
+# add方法
+## add(E object)
+```
+public boolean add(E object) {
+        Object[] a = array;
+        int s = size;
+        //  当a的长度和目前数据的长度相等时，说明容量已满。
+        // 那么就需要扩容
+        if (s == a.length) {
+            Object[] newArray = new Object[s +(s < (MIN_CAPACITY_INCREMENT / 2) ? MIN_CAPACITY_INCREMENT : s >> 1)];
+            System.arraycopy(a, 0, newArray, 0, s);
+            array = a = newArray;
+        }
+        a[s] = object;
+        size = s + 1;
+        modCount++;
+        return true;
+    }
+```
+当a的长度和目前数据的长度相等时，说明容量已满。那么就需要扩容。
+MIN_CAPACITY_INCREMENT是最小容量常亮，默认值是12
+如果当前容量小于 6（MIN_CAPACITY_INCREMENT / 2）就增加12（MIN_CAPACITY_INCREMENT）
+否则 就增加当前容量的一半 （s >> 1 ）
+因为add方法太常用了，所以上边那句话被直接写在了add方法里，以提高程序性能。
+其实它还被封装成了一个方法，供其他方法调用。
+
+采取这样的容量增长方式，是对程序运行时间和内存空间权衡的结果：一方面不想扩容太频繁
+另一方面又不想太多没被使用的空间被浪费。
+```
+private static int newCapacity(int currentCapacity) {
+        int increment = (currentCapacity < (MIN_CAPACITY_INCREMENT / 2) ?
+                MIN_CAPACITY_INCREMENT : currentCapacity >> 1);
+        return currentCapacity + increment;
+    }
+```
+
+## add(int index, E object)
+```
+public void add(int index, E object) {
+        Object[] a = array;
+        int s = size;
+        if (index > s || index < 0) {
+//       这个异常的内容非常熟悉
+//        "Invalid index " + index + ", size is " + size
+            throwIndexOutOfBoundsException(index, s);
+        }
+//      当前内容小于List容量，加入一个不会越界。
+        if (s < a.length) {
+            System.arraycopy(a, index, a, index + 1, s - index);
+        } else {
+            // assert s == a.length;
+            Object[] newArray = new Object[newCapacity(s)];
+            System.arraycopy(a, 0, newArray, 0, index);
+            System.arraycopy(a, index, newArray, index + 1, s - index);
+            array = a = newArray;
+        }
+        a[index] = object;
+        size = s + 1;
+        modCount++;
+    }
+```
+如果当前容量小于List容量，直接复制。
+
+如果当前容量恰好等于List容量，而此时再要add就需要扩容了。
+
+这样复制来复制去很耗费时间。
+
+public static void arraycopy(Object src,
+                             int srcPos,
+                             Object dest,
+                             int destPos,
+                             int length)
+src:源数组；
+srcPos:源数组要复制的起始位置；
+dest:目的数组；
+destPos:目的数组放置的起始位置；
+length:复制的长度。
+
+## addAll(Collection<? extends E> collection)
+```
+public boolean addAll(Collection<? extends E> collection) {
+        Object[] newPart = collection.toArray();
+        int newPartSize = newPart.length;
+        if (newPartSize == 0) {
+            return false;
+        }
+        Object[] a = array;
+        int s = size;
+        int newSize = s + newPartSize; // If add overflows, arraycopy will fail
+        if (newSize > a.length) {
+            int newCapacity = newCapacity(newSize - 1);  // ~33% growth room
+            Object[] newArray = new Object[newCapacity];
+            System.arraycopy(a, 0, newArray, 0, s);
+            array = a = newArray;
+        }
+        System.arraycopy(newPart, 0, a, s, newPartSize);
+        size = newSize;
+        modCount++;
+        return true;
+    }
+```
+既然add集合，那么它所有的子类都可以加么？
+如果newSize大于当前List容量，那么需要扩容。
+否则直接拷贝到尾部
+
+
+
+JAVA的每add一次都ensureCapacity，然后再add
+Android的是用if else判断的，这两个性能上有什么差别？
+Android写了这个方法而不用是为什么？
+public void ensureCapacity(int minimumCapacity) {
+        Object[] a = array;
+        if (a.length < minimumCapacity) {
+            Object[] newArray = new Object[minimumCapacity];
+            System.arraycopy(a, 0, newArray, 0, size);
+            array = newArray;
+            modCount++;
+        }
+    }
+
+
+## ArrayList是如何做到动态扩容的？
+它并没有动摇数组的根基，创造什么新的东西，就是非常朴实的复制内容。
+是将当前数组拷贝到一个新的更大的数组
+
+
+## get(int index)
+public E get(int index) {
+       if (index >= size) {
+           throwIndexOutOfBoundsException(index, size);
+       }
+       return (E) array[index];
+   }
+直接地址索引，速度非常快。
+
+## contains
+public boolean contains(Object object) {
+        Object[] a = array;
+        int s = size;
+        if (object != null) {
+            for (int i = 0; i < s; i++) {
+                if (object.equals(a[i])) {
+                    return true;
+                }
+            }
+        } else {
+            for (int i = 0; i < s; i++) {
+                if (a[i] == null) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+直接取每个元素拿出来用equals方法比较
+null没有equals方法，所以用 == 比较
+
+
+## indexOf和lastIndexOf
+```
+public int indexOf(Object object) {
+        Object[] a = array;
+        int s = size;
+        if (object != null) {
+            for (int i = 0; i < s; i++) {
+                if (object.equals(a[i])) {
+                    return i;
+                }
+            }
+        } else {
+            for (int i = 0; i < s; i++) {
+                if (a[i] == null) {
+                    return i;
+                }
+            }
+        }
+        return -1;
+    }
+```
+如果相等就返回索引值
+astIndexOf是下标从最大的开始
+
+
+
+All elements are permitted, including null.
+所有的元素都可以放，包括null

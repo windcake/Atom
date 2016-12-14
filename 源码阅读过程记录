@@ -38,3 +38,6 @@ Glide在GIF方面为什么比Picasso有优势？
 比如缓存一个图片，它肯定是把图片分成好几份来存储。
 
 HashMap存一个BitMap存的是什么？
+
+
+Volley框架的核心在于：PoolingByteArrayOutputStream和ByteArrayPool的配合使用，使之能够应对高频、量小的网络请求

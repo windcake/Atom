@@ -11,6 +11,24 @@ journal文件就是干这个用的
 于是问题就可以被这样解决，先把这些文件名加载到内存里，然后就可以去索引了。
 当执行get方法的时候，提供一个文件名（key），如果找到了，再用流读到内存里使用。
 
+## 最近最少算法的实现
+
+## size的计算和trimToSize方法
+maxSize指明了单位是bytes
+ maxSize the maximum number of bytes this cache should use to store
+ 每个缓存实体
+ valueCount the number of values per cache entry.
+Entry的构造方法里初始化了这个lengths数组，用以记录每个value的长度
+```
+private Entry(String key) {
+     this.key = key;
+     this.lengths = new long[valueCount];
+   }
+```
+在completeEdit里赋值了entry的长度
+long newLength = clean.length();
+entry.lengths[i] = newLength;
+
 
 
 ## open方法
@@ -62,8 +80,72 @@ private void readJournalLine(String line) throws IOException {
    }
  }
 
+## Journal文件是什么 介绍Journal文件
+
 ```
 这个方法会把日志文件里的文件索引都读进HashMap
 这样open方法就结束了。
 
-## 
+
+## 写入过程
+通过edit方法返回一个Editor的
+然后调用Editor的newOutputStream返回一个输出流
+输出流写入完毕之后，调用Editor的commit方法
+commit方法内部调用completeEdit方法
+
+```
+private synchronized void completeEdit(Editor editor, boolean success) throws IOException {
+   Entry entry = editor.entry;
+   if (entry.currentEditor != editor) {
+     throw new IllegalStateException();
+   }
+
+   // If this edit is creating the entry for the first time, every index must have a value.
+   if (success && !entry.readable) {
+     for (int i = 0; i < valueCount; i++) {
+       if (!editor.written[i]) {
+         editor.abort();
+         throw new IllegalStateException("Newly created entry didn't create value for index " + i);
+       }
+       if (!entry.getDirtyFile(i).exists()) {
+         editor.abort();
+         return;
+       }
+     }
+   }
+
+   for (int i = 0; i < valueCount; i++) {
+     File dirty = entry.getDirtyFile(i);
+     if (success) {
+       if (dirty.exists()) {
+         File clean = entry.getCleanFile(i);
+         dirty.renameTo(clean);
+         long oldLength = entry.lengths[i];
+         long newLength = clean.length();
+         entry.lengths[i] = newLength;
+         size = size - oldLength + newLength;
+       }
+     } else {
+       deleteIfExists(dirty);
+     }
+   }
+
+   redundantOpCount++;
+   entry.currentEditor = null;
+   if (entry.readable | success) {
+     entry.readable = true;
+     journalWriter.write(CLEAN + ' ' + entry.key + entry.getLengths() + '\n');
+     if (success) {
+       entry.sequenceNumber = nextSequenceNumber++;
+     }
+   } else {
+     lruEntries.remove(entry.key);
+     journalWriter.write(REMOVE + ' ' + entry.key + '\n');
+   }
+   journalWriter.flush();
+
+   if (size > maxSize || journalRebuildRequired()) {
+     executorService.submit(cleanupCallable);
+   }
+ }
+```
