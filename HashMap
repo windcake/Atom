@@ -1,0 +1,44 @@
+
+
+## put方法
+```
+public V put(K key, V value) {
+    // 处理key为null，HashMap允许key和value为null
+    if (key == null)
+        return putForNullKey(value);
+    // 得到key的哈希码
+    int hash = hash(key);
+    // 通过哈希码计算出bucketIndex  这个值是用 table.length-1对hash码取余
+    // 这样得到的结果一定在 0-table.length-1之间，从而不会越界
+    int i = indexFor(hash, table.length);
+    // 取出bucketIndex位置上的元素，并循环单链表，判断key是否已存在
+    for (Entry<K,V> e = table[i]; e != null; e = e.next) {
+        Object k;
+        // 哈希码相同并且对象相同时
+        if (e.hash == hash && ((k = e.key) == key || key.equals(k))) {
+            // 新值替换旧值，并返回旧值
+            V oldValue = e.value;
+            e.value = value;
+            e.recordAccess(this);
+            return oldValue;
+        }
+    }
+
+    // key不存在时，加入新元素
+    modCount++;
+    addEntry(hash, key, value, i);  
+    return null;
+}
+```
+HashMap在存储的时候，冲突一定时常发生。
+因为Entry[]的长度很短
+
+容量必须是2我幂次方是有原因的，这样就可以将取余运算编程 & 运算了
+当容量一定是2^n时，h & (length - 1) == h % length，它俩是等价不等效的，
+位运算效率非常高，实际开发中，很多的数值运算以及逻辑判断都可以转换成位运算，
+但是位运算通常是难以理解的，因为其本身就是给电脑运算的，运算的是二进制，而不是给人类运算的，
+人类运算的是十进制，这也是位运算在普遍的开发者中间不太流行的原因(门槛太高)。
+这个等式实际上可以推理出来，2^n转换成二进制就是1+n个0，
+减1之后就是0+n个1，如16 -> 10000，15 -> 01111，那根据&位运算的规则，
+都为1(真)时，才为1，那0≤运算后的结果≤15，假设h <= 15，那么运算后的结果就是h本身，h >15，
+运算后的结果就是最后三位二进制做&运算后的值，最终，就是%运算后的余数，我想，这就是容量必须为2的幂的原因。
