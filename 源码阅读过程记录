@@ -41,3 +41,9 @@ HashMap存一个BitMap存的是什么？
 
 
 Volley框架的核心在于：PoolingByteArrayOutputStream和ByteArrayPool的配合使用，使之能够应对高频、量小的网络请求
+
+
+集合需要懂，还需要思考一个问题，数组操作复制的是什么？
+
+A B 分别指向一个对象C
+A = null之后， B的值是多少？

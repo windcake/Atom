@@ -2,7 +2,7 @@
 基于Android6.0源码
 # add方法
 ## add(E object)
-```
+```L
 public boolean add(E object) {
         Object[] a = array;
         int s = size;
