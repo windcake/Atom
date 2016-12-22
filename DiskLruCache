@@ -3,10 +3,13 @@
 
 LinkedHashMap<String, Entry> lruEntries;
 
+## Journal文件是什么
 LruCache的文件是在内存里的，所以它的泛型是key和value, 比如常见的<String,Bitmap>
 但是磁盘缓存的文件是存在磁盘里，不能直接引用。那怎么去磁盘里找这个文件呢。
 所以我们必须有一个地方去记录磁盘里都有哪些文件以及文件名。
 journal文件就是干这个用的
+于是问题就可以被这样解决，先把这些文件名加载到内存里，然后就可以去索引了。
+当执行get方法的时候，提供一个文件名（key），如果找到了，再用流读到内存里使用。
 
 ## 最近最少算法的实现
 
@@ -28,47 +31,61 @@ entry.lengths[i] = newLength;
 
 
 
-这里引用的是Bitmap的引用。
+## open方法
+构造方法人用 private修饰的，所以提供的open方法。
 
+open方法调用了readJournal方法
+readJournal方法内部又调用了
 
+```
+private void readJournalLine(String line) throws IOException {
+   int firstSpace = line.indexOf(' ');
+   if (firstSpace == -1) {
+     throw new IOException("unexpected journal line: " + line);
+   }
+
+   int keyBegin = firstSpace + 1;
+   int secondSpace = line.indexOf(' ', keyBegin);
+   final String key;
+   if (secondSpace == -1) {
+     key = line.substring(keyBegin);
+     if (firstSpace == REMOVE.length() && line.startsWith(REMOVE)) {
+       lruEntries.remove(key);
+       return;
+     }
+   } else {
+
+//  读key,也就是文件名
+     key = line.substring(keyBegin, secondSpace);
+   }
+
+//  把文件名读进内存
+   Entry entry = lruEntries.get(key);
+   if (entry == null) {
+     entry = new Entry(key);
+     lruEntries.put(key, entry);
+   }
+
+   if (secondSpace != -1 && firstSpace == CLEAN.length() && line.startsWith(CLEAN)) {
+     String[] parts = line.substring(secondSpace + 1).split(" ");
+     entry.readable = true;
+     entry.currentEditor = null;
+     entry.setLengths(parts);
+   } else if (secondSpace == -1 && firstSpace == DIRTY.length() && line.startsWith(DIRTY)) {
+     entry.currentEditor = new Editor(entry);
+   } else if (secondSpace == -1 && firstSpace == READ.length() && line.startsWith(READ)) {
+     // This work was already done by calling lruEntries.get().
+   } else {
+     throw new IOException("unexpected journal line: " + line);
+   }
+ }
 
 ## Journal文件是什么 介绍Journal文件
 
-## open方法
-构造方法人用 private修饰的，所以提供的open方法。
 ```
-private void readJournal() throws IOException {
-    StrictLineReader reader = new StrictLineReader(new FileInputStream(journalFile), Util.US_ASCII);
-    try {
-      String magic = reader.readLine();
-      String version = reader.readLine();
-      String appVersionString = reader.readLine();
-      String valueCountString = reader.readLine();
-      String blank = reader.readLine();
-// 略几行
-      int lineCount = 0;
-      while (true) {
-        try {
-          readJournalLine(reader.readLine());
-          lineCount++;
-        } catch (EOFException endOfJournal) {
-          break;
-        }
-      }
-      redundantOpCount = lineCount - lruEntries.size();
+这个方法会把日志文件里的文件索引都读进HashMap
+这样open方法就结束了。
 
-      // If we ended on a truncated line, rebuild the journal before appending to it.
-      if (reader.hasUnterminatedLine()) {
-        rebuildJournal();
-      } else {
-        journalWriter = new BufferedWriter(new OutputStreamWriter(
-            new FileOutputStream(journalFile, true), Util.US_ASCII));
-      }
-    } finally {
-      Util.closeQuietly(reader);
-    }
-  }
-```
 
 ## 写入过程
 通过edit方法返回一个Editor的

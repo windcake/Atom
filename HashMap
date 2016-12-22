@@ -26,7 +26,7 @@ public V put(K key, V value) {
 
     // key不存在时，加入新元素
     modCount++;
-    addEntry(hash, key, value, i);  
+    addEntry(hash, key, value, i);
     return null;
 }
 ```
