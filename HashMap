@@ -1,6 +1,10 @@
 
 
 
+
+其数据组织方式是数组加链表
+散列的意思是不像数组一样，一个一个往后存储。它是依据数组长度对key的Hash值取余来确定地址。
+
 ```
 public class HashMap<K, V> extends AbstractMap<K, V> implements Cloneable, Serializable {
 
@@ -68,6 +72,56 @@ public class HashMap<K, V> extends AbstractMap<K, V> implements Cloneable, Seria
     private transient Set<K> keySet;
     private transient Set<Entry<K, V>> entrySet;
     private transient Collection<V> values;
+
+// 数据结构
+// 这个Entry是单向链表，也就是发生冲突之后的那个链表。
+    static class HashMapEntry<K, V> implements Entry<K, V> {
+        final K key;
+        V value;
+        final int hash;
+        HashMapEntry<K, V> next;
+
+        HashMapEntry(K key, V value, int hash, HashMapEntry<K, V> next) {
+            this.key = key;
+            this.value = value;
+            this.hash = hash;
+            this.next = next;
+        }
+
+        public final K getKey() {
+            return key;
+        }
+
+        public final V getValue() {
+            return value;
+        }
+
+        public final V setValue(V value) {
+            V oldValue = this.value;
+            this.value = value;
+            return oldValue;
+        }
+
+        @Override public final boolean equals(Object o) {
+            if (!(o instanceof Entry)) {
+                return false;
+            }
+            Entry<?, ?> e = (Entry<?, ?>) o;
+            return Objects.equal(e.getKey(), key)
+                    && Objects.equal(e.getValue(), value);
+        }
+
+        @Override public final int hashCode() {
+            return (key == null ? 0 : key.hashCode()) ^
+                    (value == null ? 0 : value.hashCode());
+        }
+
+        @Override public final String toString() {
+            return key + "=" + value;
+        }
+    }
+
+
 
     /**
      * Constructs a new empty {@code HashMap} instance.
@@ -140,6 +194,140 @@ public class HashMap<K, V> extends AbstractMap<K, V> implements Cloneable, Seria
     }
 
 
+    @Override public V put(K key, V value) {
+        if (key == null) {
+            return putValueForNullKey(value);
+        }
+//      算出key的Hash值，然后把这个值用table长度减一取余得出索引
+  // 容量必须是2的幂次方是有原因的，这样就可以将取余%运算变成与 & 运算了
+        int hash = Collections.secondaryHash(key);
+        HashMapEntry<K, V>[] tab = table;
+        int index = hash & (tab.length - 1);
+        // 这个位置有可能因为冲突存在单链表，所以需要对单链表索引
+        // 如果key相同，就换掉它的value。
+        // 如果遍历结束没有相同的key，就执行插入操作，也就是addNewEntry。
+        for (HashMapEntry<K, V> e = tab[index]; e != null; e = e.next) {
+            if (e.hash == hash && key.equals(e.key)) {
+                preModify(e);
+                V oldValue = e.value;
+                e.value = value;
+                return oldValue;
+            }
+        }
+
+        // No entry for (non-null) key is present; create one
+        modCount++;
+        if (size++ > threshold) {
+            tab = doubleCapacity();
+            index = hash & (tab.length - 1);
+        }
+        // 插入一个Entry，实际上是插入在了单链表的表头。
+        addNewEntry(key, value, hash, index);
+        return null;
+    }
+
+    private V putValueForNullKey(V value) {
+        HashMapEntry<K, V> entry = entryForNullKey;
+        if (entry == null) {
+            addNewEntryForNullKey(value);
+            size++;
+            modCount++;
+            return null;
+        } else {
+            preModify(entry);
+            V oldValue = entry.value;
+            entry.value = value;
+            return oldValue;
+        }
+    }
+
+  /**
+  HashMapEntry的构造方法
+     HashMapEntry(K key, V value, int hash, HashMapEntry<K, V> next) {
+         this.key = key;
+         this.value = value;
+         this.hash = hash;
+         this.next = next;
+     }
+     */
+    // 这样的话，是插入在链表首部
+    // 即便是当前数组那里存在数据，也可以加入，解决了冲突。
+    void addNewEntry(K key, V value, int hash, int index) {
+        table[index] = new HashMapEntry<K, V>(key, value, hash, table[index]);
+    }
+
+// 通过key去查找value
+    public V get(Object key) {
+        if (key == null) {
+            HashMapEntry<K, V> e = entryForNullKey;
+            return e == null ? null : e.value;
+        }
+
+        int hash = Collections.secondaryHash(key);
+        HashMapEntry<K, V>[] tab = table;
+        for (HashMapEntry<K, V> e = tab[hash & (tab.length - 1)];e != null; e = e.next) {
+            K eKey = e.key;
+            // 如果key的地址相同，或者hash相同。
+            // 疑问 hash对比和equals有什么区别?
+            if (eKey == key || (e.hash == hash && key.equals(eKey))) {
+                return e.value;
+            }
+        }
+        return null;
+    }
+
+
+
+    /**
+     * Doubles the capacity of the hash table. Existing entries are placed in
+     * the correct bucket on the enlarged table. If the current capacity is,
+     * MAXIMUM_CAPACITY, this method is a no-op. Returns the table, which
+     * will be new unless we were already at MAXIMUM_CAPACITY.
+     */
+    //  容量扩大2倍
+    private HashMapEntry<K, V>[] doubleCapacity() {
+        HashMapEntry<K, V>[] oldTable = table;
+        int oldCapacity = oldTable.length;
+        if (oldCapacity == MAXIMUM_CAPACITY) {
+            return oldTable;
+        }
+        // 创建一个容量翻倍的table
+        int newCapacity = oldCapacity * 2;
+        HashMapEntry<K, V>[] newTable = makeTable(newCapacity);
+        if (size == 0) {
+            return newTable;
+        }
+
+        for (int j = 0; j < oldCapacity; j++) {
+            /*
+             * Rehash the bucket using the minimum number of field writes.
+             * This is the most subtle and delicate code in the class.
+             */
+            //  注释说，接下来的一段代码是整个类的精华
+            HashMapEntry<K, V> e = oldTable[j];
+            if (e == null) {
+                continue;
+            }
+            // 原来的索引
+            int highBit = e.hash & oldCapacity;
+            HashMapEntry<K, V> broken = null;
+            newTable[j | highBit] = e;
+            for (HashMapEntry<K, V> n = e.next; n != null; e = n, n = n.next) {
+                int nextHighBit = n.hash & oldCapacity;
+                if (nextHighBit != highBit) {
+                    if (broken == null)
+                        newTable[j | nextHighBit] = n;
+                    else
+                        broken.next = n;
+                    broken = e;
+                    highBit = nextHighBit;
+                }
+            }
+            if (broken != null)
+                broken.next = null;
+        }
+        return newTable;
+    }
 
     /**
      * This method is called from the pseudo-constructors (clone and readObject)
@@ -151,23 +339,7 @@ public class HashMap<K, V> extends AbstractMap<K, V> implements Cloneable, Seria
      */
     void init() { }
 
-    public V get(Object key) {
-        if (key == null) {
-            HashMapEntry<K, V> e = entryForNullKey;
-            return e == null ? null : e.value;
-        }
 
-        int hash = Collections.secondaryHash(key);
-        HashMapEntry<K, V>[] tab = table;
-        for (HashMapEntry<K, V> e = tab[hash & (tab.length - 1)];
-                e != null; e = e.next) {
-            K eKey = e.key;
-            if (eKey == key || (e.hash == hash && key.equals(eKey))) {
-                return e.value;
-            }
-        }
-        return null;
-    }
 
     /**
      * Returns whether this map contains the specified key.
@@ -217,6 +389,7 @@ public class HashMap<K, V> extends AbstractMap<K, V> implements Cloneable, Seria
         }
 
         // value is non-null
+        // value不为null的话，挨个索引 并用equals方法比较
         for (int i = 0; i < len; i++) {
             for (HashMapEntry e = tab[i]; e != null; e = e.next) {
                 if (value.equals(e.value)) {
@@ -227,57 +400,7 @@ public class HashMap<K, V> extends AbstractMap<K, V> implements Cloneable, Seria
         return entryForNullKey != null && value.equals(entryForNullKey.value);
     }
 
-    /**
-     * Maps the specified key to the specified value.
-     *
-     * @param key
-     *            the key.
-     * @param value
-     *            the value.
-     * @return the value of any previous mapping with the specified key or
-     *         {@code null} if there was no such mapping.
-     */
-    @Override public V put(K key, V value) {
-        if (key == null) {
-            return putValueForNullKey(value);
-        }
 
-        int hash = Collections.secondaryHash(key);
-        HashMapEntry<K, V>[] tab = table;
-        int index = hash & (tab.length - 1);
-        for (HashMapEntry<K, V> e = tab[index]; e != null; e = e.next) {
-            if (e.hash == hash && key.equals(e.key)) {
-                preModify(e);
-                V oldValue = e.value;
-                e.value = value;
-                return oldValue;
-            }
-        }
-
-        // No entry for (non-null) key is present; create one
-        modCount++;
-        if (size++ > threshold) {
-            tab = doubleCapacity();
-            index = hash & (tab.length - 1);
-        }
-        addNewEntry(key, value, hash, index);
-        return null;
-    }
-
-    private V putValueForNullKey(V value) {
-        HashMapEntry<K, V> entry = entryForNullKey;
-        if (entry == null) {
-            addNewEntryForNullKey(value);
-            size++;
-            modCount++;
-            return null;
-        } else {
-            preModify(entry);
-            V oldValue = entry.value;
-            entry.value = value;
-            return oldValue;
-        }
-    }
 
     /**
      * Give LinkedHashMap a chance to take action when we modify an existing
@@ -373,6 +496,8 @@ public class HashMap<K, V> extends AbstractMap<K, V> implements Cloneable, Seria
      *
      *  <p>This method is called only by putAll.
      */
+    //  这个方法只被 putAll调用了，
+    // 它的容量不是翻倍，而是扩大到刚好装下newmap的2的整次幂
     private void ensureCapacity(int numMappings) {
         int newCapacity = Collections.roundUpToPowerOfTwo(capacityForInitSize(numMappings));
         HashMapEntry<K, V>[] oldTable = table;
@@ -414,52 +539,7 @@ public class HashMap<K, V> extends AbstractMap<K, V> implements Cloneable, Seria
         return newTable;
     }
 
-    /**
-     * Doubles the capacity of the hash table. Existing entries are placed in
-     * the correct bucket on the enlarged table. If the current capacity is,
-     * MAXIMUM_CAPACITY, this method is a no-op. Returns the table, which
-     * will be new unless we were already at MAXIMUM_CAPACITY.
-     */
-    private HashMapEntry<K, V>[] doubleCapacity() {
-        HashMapEntry<K, V>[] oldTable = table;
-        int oldCapacity = oldTable.length;
-        if (oldCapacity == MAXIMUM_CAPACITY) {
-            return oldTable;
-        }
-        int newCapacity = oldCapacity * 2;
-        HashMapEntry<K, V>[] newTable = makeTable(newCapacity);
-        if (size == 0) {
-            return newTable;
-        }
 
-        for (int j = 0; j < oldCapacity; j++) {
-            /*
-             * Rehash the bucket using the minimum number of field writes.
-             * This is the most subtle and delicate code in the class.
-             */
-            HashMapEntry<K, V> e = oldTable[j];
-            if (e == null) {
-                continue;
-            }
-            int highBit = e.hash & oldCapacity;
-            HashMapEntry<K, V> broken = null;
-            newTable[j | highBit] = e;
-            for (HashMapEntry<K, V> n = e.next; n != null; e = n, n = n.next) {
-                int nextHighBit = n.hash & oldCapacity;
-                if (nextHighBit != highBit) {
-                    if (broken == null)
-                        newTable[j | nextHighBit] = n;
-                    else
-                        broken.next = n;
-                    broken = e;
-                    highBit = nextHighBit;
-                }
-            }
-            if (broken != null)
-                broken.next = null;
-        }
-        return newTable;
-    }
 
     /**
      * Removes the mapping with the specified key from this map.
@@ -516,6 +596,7 @@ public class HashMap<K, V> extends AbstractMap<K, V> implements Cloneable, Seria
      * @see #isEmpty
      * @see #size
      */
+    //  把table里都装上null
     @Override public void clear() {
         if (size != 0) {
             Arrays.fill(table, null);
@@ -904,7 +985,7 @@ public V put(K key, V value) {
 HashMap在存储的时候，冲突一定时常发生。
 因为Entry[]的长度很短
 
-容量必须是2我幂次方是有原因的，这样就可以将取余运算编程 & 运算了
+容量必须是2的幂次方是有原因的，这样就可以将取余运算变成 & 运算了
 当容量一定是2^n时，h & (length - 1) == h % length，它俩是等价不等效的，
 位运算效率非常高，实际开发中，很多的数值运算以及逻辑判断都可以转换成位运算，
 但是位运算通常是难以理解的，因为其本身就是给电脑运算的，运算的是二进制，而不是给人类运算的，
