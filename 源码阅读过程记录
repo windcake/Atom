@@ -40,4 +40,9 @@ Glide在GIF方面为什么比Picasso有优势？
 HashMap存一个BitMap存的是什么？
 
 
+android:versionCode="100"
+android:versionName="114"
+
 Volley框架的核心在于：PoolingByteArrayOutputStream和ByteArrayPool的配合使用，使之能够应对高频、量小的网络请求
+
+操他妈，弱引用的实现，难道是自己检测自己有没有被其他对象引用，如果没有，就自己释放自己？然后等GC来收？
