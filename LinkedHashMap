@@ -1,18 +1,22 @@
 
 
-```
-
-内部是基于双向链表，也就是数组+双向链表
+内部是基于双向循环链表，也就是数组+双向链表
 如果有三个参数的构造器的第三个参数为true,那么其内部顺序就是访问顺序。
 put和get都会影响这个顺序
 
+对链表进行最近最远算法的实现，其实是自相矛盾的。
+因为链表的存在是为了解决冲突，HashMap为了保证存取的速度是不希望存在冲突的。
+而LRU又依赖这个冲突。
+
+header放在哪个table里？
+还是每个table里都有一个header？
+
+
+```
+
 public class LinkedHashMap<K, V> extends HashMap<K, V> {
 
-    /**
-     * A dummy entry in the circular linked list of entries in the map.
-     * The first real entry is header.nxt, and the last is header.prv.
-     * If the map is empty, header.nxt == header && header.prv == header.
-     */
+    // 头Entry，不包含任何数据。
     transient LinkedEntry<K, V> header;
     // true是访问排序，false是按插入顺序排。
     private final boolean accessOrder;
@@ -34,7 +38,7 @@ public class LinkedHashMap<K, V> extends HashMap<K, V> {
         this(initialCapacity, loadFactor, false);
     }
 
-
+// 调用HashMap的构造方法，来构造table数组
     public LinkedHashMap(int initialCapacity, float loadFactor, boolean accessOrder) {
         super(initialCapacity, loadFactor);
         init();
@@ -74,6 +78,7 @@ public class LinkedHashMap<K, V> extends HashMap<K, V> {
         /** Create a normal entry */
         LinkedEntry(K key, V value, int hash, HashMapEntry<K, V> next,
                     LinkedEntry<K, V> nxt, LinkedEntry<K, V> prv) {
+            //调用super后，发生了什么？
             super(key, value, hash, next);
             this.nxt = nxt;
             this.prv = prv;
@@ -167,11 +172,8 @@ public class LinkedHashMap<K, V> extends HashMap<K, V> {
      * @return the value of the mapping with the specified key, or {@code null}
      *         if no mapping for the specified key is found.
      */
+    //  get方法复写
     @Override public V get(Object key) {
-        /*
-         * This method is overridden to eliminate the need for a polymorphic
-         * invocation in superclass at the expense of code duplication.
-         */
         if (key == null) {
             HashMapEntry<K, V> e = entryForNullKey;
             if (e == null)
@@ -180,13 +182,16 @@ public class LinkedHashMap<K, V> extends HashMap<K, V> {
                 makeTail((LinkedEntry<K, V>) e);
             return e.value;
         }
+
         int hash = Collections.secondaryHash(key);
+        // 索引和HashMap一样
         HashMapEntry<K, V>[] tab = table;
         for (HashMapEntry<K, V> e = tab[hash & (tab.length - 1)];
                 e != null; e = e.next) {
             K eKey = e.key;
             if (eKey == key || (e.hash == hash && key.equals(eKey))) {
                 if (accessOrder)
+                // 放到队尾
                     makeTail((LinkedEntry<K, V>) e);
                 return e.value;
             }
@@ -201,10 +206,12 @@ public class LinkedHashMap<K, V> extends HashMap<K, V> {
      */
     private void makeTail(LinkedEntry<K, V> e) {
         // Unlink e
+        //  把e从链表里拿出来
         e.prv.nxt = e.nxt;
         e.nxt.prv = e.prv;
 
         // Relink e as tail
+        //  然后把e放到尾部
         LinkedEntry<K, V> header = this.header;
         LinkedEntry<K, V> oldTail = header.prv;
         e.nxt = header;
@@ -251,16 +258,21 @@ public class LinkedHashMap<K, V> extends HashMap<K, V> {
         return false;
     }
 
+//
     public void clear() {
+      // HashMap的clear方法
+      // 把table里都装上null
         super.clear();
 
         // Clear all links to help GC
+        // 从header开始遍历清空
         LinkedEntry<K, V> header = this.header;
         for (LinkedEntry<K, V> e = header.nxt; e != header; ) {
             LinkedEntry<K, V> nxt = e.nxt;
             e.nxt = e.prv = null;
             e = nxt;
         }
+        // 回归到初始的空map状态
         header.nxt = header.prv = header;
     }
 }
