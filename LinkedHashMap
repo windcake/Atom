@@ -45,25 +45,10 @@ public class LinkedHashMap<K, V> extends HashMap<K, V> {
         this.accessOrder = accessOrder;
     }
 
-    /**
-     * Constructs a new {@code LinkedHashMap} instance containing the mappings
-     * from the specified map. The order of the elements is preserved.
-     *
-     * @param map
-     *            the mappings to add.
-     */
-    public LinkedHashMap(Map<? extends K, ? extends V> map) {
-        this(capacityForInitSize(map.size()));
-        constructorPutAll(map);
-    }
-
     @Override void init() {
         header = new LinkedEntry<K, V>();
     }
 
-    /**
-     * LinkedEntry adds nxt/prv double-links to plain HashMapEntry.
-     */
     //  双向链表的数据结构，这个感觉和LinkedList的双向链表感觉感谢
     static class LinkedEntry<K, V> extends HashMapEntry<K, V> {
         LinkedEntry<K, V> nxt;
@@ -106,19 +91,6 @@ public class LinkedHashMap<K, V> extends HashMap<K, V> {
         return eldest != header ? eldest : null;
     }
 
-    /**
-     * Evicts eldest entry if instructed, creates a new entry and links it in
-     * as head of linked list. This method should call constructorNewEntry
-     * (instead of duplicating code) if the performance of your VM permits.
-     *
-     * <p>It may seem strange that this method is tasked with adding the entry
-     * to the hash table (which is properly the province of our superclass).
-     * The alternative of passing the "next" link in to this method and
-     * returning the newly created element does not work! If we remove an
-     * (eldest) entry that happens to be the first entry in the same bucket
-     * as the newly created entry, the "next" link would become invalid, and
-     * the resulting hash table corrupt.
-     */
     //  新add的是在尾部
     @Override void addNewEntry(K key, V value, int hash, int index) {
         LinkedEntry<K, V> header = this.header;
@@ -231,31 +203,6 @@ public class LinkedHashMap<K, V> extends HashMap<K, V> {
         le.prv.nxt = le.nxt;
         le.nxt.prv = le.prv;
         le.nxt = le.prv = null; // Help the GC (for performance)
-    }
-
-    /**
-     * This override is done for LinkedHashMap performance: iteration is cheaper
-     * via LinkedHashMap nxt links.
-     */
-    @Override public boolean containsValue(Object value) {
-        if (value == null) {
-            for (LinkedEntry<K, V> header = this.header, e = header.nxt;
-                    e != header; e = e.nxt) {
-                if (e.value == null) {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        // value is non-null
-        for (LinkedEntry<K, V> header = this.header, e = header.nxt;
-                e != header; e = e.nxt) {
-            if (value.equals(e.value)) {
-                return true;
-            }
-        }
-        return false;
     }
 
 //
