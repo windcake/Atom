@@ -1,0 +1,37 @@
+
+
+
+继承自Reference，所以先了解一下它。
+他是一个抽象类，除了系统提供的子类，不能创建别的子类。
+也不建议这么做，因为引用和GC是息息相关的。
+
+系统提供了三种引用类型，他们依次减弱：
+SoftReference
+WeakReference
+PhantomReference（幽灵）
+
+这个“若”指的是，当GC来的时候，它更容易被回收。
+
+为了正确的使用者三种引用，理解他们的clear和enqueue机制非常重要。
+
+强引用：从根节点，至少有一个路径可达。并且没有其他三种引用。
+软引用：强引用不可达。被软引用引用，并且没有弱和虚。
+
+这个里边有个queue
+volatile ReferenceQueue<? super T> queue
+还有个enqueue方法，内部调用queue.enqueue(this);
+enqueue()
+
+满足如下几点的时候，GC就认为它是若引用。
+
+
+
+
+
+
+SoftReference as late as possible
+是到了不得不清理的时候才清理，
+也就是内存实在不够用了，马上就要OOM了，采取清理。
+
+WeakReference as soon as
+只要它只是若引用，它就会被清理。

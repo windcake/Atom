@@ -51,3 +51,5 @@ Volley框架的核心在于：PoolingByteArrayOutputStream和ByteArrayPool的配
 
 A B 分别指向一个对象C
 A = null之后， B的值是多少？
+
+int型的Hash码是它自己么？
