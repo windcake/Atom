@@ -2,8 +2,10 @@
 
 
 
-其数据组织方式是数组加链表
+其数据组织方式是数组加链表,链表的存在是为了解决Hash冲突。
 散列的意思是不像数组一样，一个一个往后存储。它是依据数组长度对key的Hash值取余来确定地址。
+
+扩容
 
 ```
 public class HashMap<K, V> extends AbstractMap<K, V> implements Cloneable, Serializable {
@@ -11,61 +13,27 @@ public class HashMap<K, V> extends AbstractMap<K, V> implements Cloneable, Seria
     // HashMap的最小容量，必须是2的正整次幂
     private static final int MINIMUM_CAPACITY = 4;
 
-  // HashMap的最大容量（2的三十次方），必须是2的正整次幂
+    // HashMap的最大容量（2的三十次方），必须是2的正整次幂
     private static final int MAXIMUM_CAPACITY = 1 << 30;
 
-    /**
-     * An empty table shared by all zero-capacity maps (typically from default
-     * constructor). It is never written to, and replaced on first put. Its size
-     * is set to half the minimum, so that the first resize will create a
-     * minimum-sized table.
-     */
     // 所有空Map都使用这个空table，
     private static final Entry[] EMPTY_TABLE
             = new HashMapEntry[MINIMUM_CAPACITY >>> 1];
-
-    /**
-     * The default load factor. Note that this implementation ignores the
-     * load factor, but cannot do away with it entirely because it's
-     * mentioned in the API.
-     *
-     * <p>Note that this constant has no impact on the behavior of the program,
-     * but it is emitted as part of the serialized form. The load factor of
-     * .75 is hardwired into the program, which uses cheap shifts in place of
-     * expensive division.
-     */
-    //  加载因子
+    // 加载因子
     static final float DEFAULT_LOAD_FACTOR = .75F;
 
-    /**
-     * The hash table. If this hash map contains a mapping for null, it is
-     * not represented this hash table.
-     */
     transient HashMapEntry<K, V>[] table;
 
-    /**
-     * The entry representing the null key, or null if there's no such mapping.
-     */
     transient HashMapEntry<K, V> entryForNullKey;
 
-    /**
-     * The number of mappings in this hash map.
-     */
     transient int size;
 
-    /**
-     * Incremented by "structural modifications" to allow (best effort)
-     * detection of concurrent modification.
-     */
     transient int modCount;
 
-    /**
-     * The table is rehashed when its size exceeds this threshold.
-     * The value of this field is generally .75 * capacity, except when
-     * the capacity is zero, as described in the EMPTY_TABLE declaration
-     * above.
-     */
     //  阈值，用于判断是否要扩容。默认值是.75 * capacity
+    // 比如capacity是100，那这个阈值就是75
+    // 也就是说，HashMap装了75个数据之后，就扩容。
+    // 此时table被使用了应该是小于等于 75
     private transient int threshold;
 
     // Views - lazily initialized
@@ -121,15 +89,11 @@ public class HashMap<K, V> extends AbstractMap<K, V> implements Cloneable, Seria
         }
     }
 
-
-
-    /**
-     * Constructs a new empty {@code HashMap} instance.
-     */
-    //  构造函数
+    //  构造函数，构造一个空的HashMap
     @SuppressWarnings("unchecked")
     public HashMap() {
         table = (HashMapEntry<K, V>[]) EMPTY_TABLE;
+        // 第一次put数据的时候，强迫替代这个空table
         threshold = -1; // Forces first put invocation to replace EMPTY_TABLE
     }
 // 指定容量的构造函数
@@ -139,6 +103,7 @@ public class HashMap<K, V> extends AbstractMap<K, V> implements Cloneable, Seria
         }
 
         if (capacity == 0) {
+          // 如果容量为0，构造一个空的HashMap
             @SuppressWarnings("unchecked")
             HashMapEntry<K, V>[] tab = (HashMapEntry<K, V>[]) EMPTY_TABLE;
             table = tab;
@@ -166,26 +131,7 @@ public class HashMap<K, V> extends AbstractMap<K, V> implements Cloneable, Seria
         }
 
     }
-// 包含Map
-    public HashMap(Map<? extends K, ? extends V> map) {
-        this(capacityForInitSize(map.size()));
-        constructorPutAll(map);
-    }
 
-    final void constructorPutAll(Map<? extends K, ? extends V> map) {
-        if (table == EMPTY_TABLE) {
-            doubleCapacity(); // Don't do unchecked puts to a shared table.
-        }
-        for (Entry<? extends K, ? extends V> e : map.entrySet()) {
-            constructorPut(e.getKey(), e.getValue());
-        }
-    }
-
-    /**
-     * Returns an appropriate capacity for the specified initial size. Does
-     * not round the result up to a power of two; the caller must do this!
-     * The returned value will be between 0 and MAXIMUM_CAPACITY (inclusive).
-     */
     static int capacityForInitSize(int size) {
         int result = (size >> 1) + size; // Multiply by 3/2 to allow for growth
 
@@ -199,7 +145,7 @@ public class HashMap<K, V> extends AbstractMap<K, V> implements Cloneable, Seria
             return putValueForNullKey(value);
         }
 //      算出key的Hash值，然后把这个值用table长度减一取余得出索引
-  // 容量必须是2的幂次方是有原因的，这样就可以将取余%运算变成与 & 运算了
+//      容量必须是2的幂次方是有原因的，这样就可以将取余%运算变成与 & 运算了
         int hash = Collections.secondaryHash(key);
         HashMapEntry<K, V>[] tab = table;
         int index = hash & (tab.length - 1);
@@ -329,130 +275,6 @@ public class HashMap<K, V> extends AbstractMap<K, V> implements Cloneable, Seria
         return newTable;
     }
 
-    /**
-     * This method is called from the pseudo-constructors (clone and readObject)
-     * prior to invoking constructorPut/constructorPutAll, which invoke the
-     * overridden constructorNewEntry method. Normally it is a VERY bad idea to
-     * invoke an overridden method from a pseudo-constructor (Effective Java
-     * Item 17). In this case it is unavoidable, and the init method provides a
-     * workaround.
-     */
-    void init() { }
-
-
-
-    /**
-     * Returns whether this map contains the specified key.
-     *
-     * @param key
-     *            the key to search for.
-     * @return {@code true} if this map contains the specified key,
-     *         {@code false} otherwise.
-     */
-    @Override public boolean containsKey(Object key) {
-        if (key == null) {
-            return entryForNullKey != null;
-        }
-
-        int hash = Collections.secondaryHash(key);
-        HashMapEntry<K, V>[] tab = table;
-        for (HashMapEntry<K, V> e = tab[hash & (tab.length - 1)];
-                e != null; e = e.next) {
-            K eKey = e.key;
-            if (eKey == key || (e.hash == hash && key.equals(eKey))) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Returns whether this map contains the specified value.
-     *
-     * @param value
-     *            the value to search for.
-     * @return {@code true} if this map contains the specified value,
-     *         {@code false} otherwise.
-     */
-    @Override public boolean containsValue(Object value) {
-        HashMapEntry[] tab = table;
-        int len = tab.length;
-        if (value == null) {
-            for (int i = 0; i < len; i++) {
-                for (HashMapEntry e = tab[i]; e != null; e = e.next) {
-                    if (e.value == null) {
-                        return true;
-                    }
-                }
-            }
-            return entryForNullKey != null && entryForNullKey.value == null;
-        }
-
-        // value is non-null
-        // value不为null的话，挨个索引 并用equals方法比较
-        for (int i = 0; i < len; i++) {
-            for (HashMapEntry e = tab[i]; e != null; e = e.next) {
-                if (value.equals(e.value)) {
-                    return true;
-                }
-            }
-        }
-        return entryForNullKey != null && value.equals(entryForNullKey.value);
-    }
-
-
-
-    /**
-     * Give LinkedHashMap a chance to take action when we modify an existing
-     * entry.
-     *
-     * @param e the entry we're about to modify.
-     */
-    void preModify(HashMapEntry<K, V> e) { }
-
-    /**
-     * This method is just like put, except that it doesn't do things that
-     * are inappropriate or unnecessary for constructors and pseudo-constructors
-     * (i.e., clone, readObject). In particular, this method does not check to
-     * ensure that capacity is sufficient, and does not increment modCount.
-     */
-    private void constructorPut(K key, V value) {
-        if (key == null) {
-            HashMapEntry<K, V> entry = entryForNullKey;
-            if (entry == null) {
-                entryForNullKey = constructorNewEntry(null, value, 0, null);
-                size++;
-            } else {
-                entry.value = value;
-            }
-            return;
-        }
-
-        int hash = Collections.secondaryHash(key);
-        HashMapEntry<K, V>[] tab = table;
-        int index = hash & (tab.length - 1);
-        HashMapEntry<K, V> first = tab[index];
-        for (HashMapEntry<K, V> e = first; e != null; e = e.next) {
-            if (e.hash == hash && key.equals(e.key)) {
-                e.value = value;
-                return;
-            }
-        }
-
-        // No entry for (non-null) key is present; create one
-        tab[index] = constructorNewEntry(key, value, hash, first);
-        size++;
-    }
-
-    /**
-     * Creates a new entry for the given key, value, hash, and index and
-     * inserts it into the hash table. This method is called by put
-     * (and indirectly, putAll), and overridden by LinkedHashMap. The hash
-     * must incorporate the secondary hash function.
-     */
-    void addNewEntry(K key, V value, int hash, int index) {
-        table[index] = new HashMapEntry<K, V>(key, value, hash, table[index]);
-    }
 
     /**
      * Creates a new entry for the null key, and the given value and
@@ -486,16 +308,7 @@ public class HashMap<K, V> extends AbstractMap<K, V> implements Cloneable, Seria
         super.putAll(map);
     }
 
-    /**
-     * Ensures that the hash table has sufficient capacity to store the
-     * specified number of mappings, with room to grow. If not, it increases the
-     * capacity as appropriate. Like doubleCapacity, this method moves existing
-     * entries to new buckets as appropriate. Unlike doubleCapacity, this method
-     * can grow the table by factors of 2^n for n > 1. Hopefully, a single call
-     * to this method will be faster than multiple calls to doubleCapacity.
-     *
-     *  <p>This method is called only by putAll.
-     */
+
     //  这个方法只被 putAll调用了，
     // 它的容量不是翻倍，而是扩大到刚好装下newmap的2的整次幂
     private void ensureCapacity(int numMappings) {
@@ -527,10 +340,7 @@ public class HashMap<K, V> extends AbstractMap<K, V> implements Cloneable, Seria
         }
     }
 
-    /**
-     * Allocate a table of the given capacity and set the threshold accordingly.
-     * @param newCapacity must be a power of two
-     */
+
     private HashMapEntry<K, V>[] makeTable(int newCapacity) {
         @SuppressWarnings("unchecked") HashMapEntry<K, V>[] newTable
                 = (HashMapEntry<K, V>[]) new HashMapEntry[newCapacity];
@@ -539,16 +349,6 @@ public class HashMap<K, V> extends AbstractMap<K, V> implements Cloneable, Seria
         return newTable;
     }
 
-
-
-    /**
-     * Removes the mapping with the specified key from this map.
-     *
-     * @param key
-     *            the key of the mapping to remove.
-     * @return the value of the removed mapping or {@code null} if no mapping
-     *         for the specified key was found.
-     */
     @Override public V remove(Object key) {
         if (key == null) {
             return removeNullKey();
@@ -585,17 +385,6 @@ public class HashMap<K, V> extends AbstractMap<K, V> implements Cloneable, Seria
         return e.value;
     }
 
-    /**
-     * Subclass overrides this method to unlink entry.
-     */
-    void postRemove(HashMapEntry<K, V> e) { }
-
-    /**
-     * Removes all mappings from this hash map, leaving it empty.
-     *
-     * @see #isEmpty
-     * @see #size
-     */
     //  把table里都装上null
     @Override public void clear() {
         if (size != 0) {
@@ -606,346 +395,6 @@ public class HashMap<K, V> extends AbstractMap<K, V> implements Cloneable, Seria
         }
     }
 
-    /**
-     * Returns a set of the keys contained in this map. The set is backed by
-     * this map so changes to one are reflected by the other. The set does not
-     * support adding.
-     *
-     * @return a set of the keys.
-     */
-    @Override public Set<K> keySet() {
-        Set<K> ks = keySet;
-        return (ks != null) ? ks : (keySet = new KeySet());
-    }
-
-    /**
-     * Returns a collection of the values contained in this map. The collection
-     * is backed by this map so changes to one are reflected by the other. The
-     * collection supports remove, removeAll, retainAll and clear operations,
-     * and it does not support add or addAll operations.
-     * <p>
-     * This method returns a collection which is the subclass of
-     * AbstractCollection. The iterator method of this subclass returns a
-     * "wrapper object" over the iterator of map's entrySet(). The {@code size}
-     * method wraps the map's size method and the {@code contains} method wraps
-     * the map's containsValue method.
-     * </p>
-     * <p>
-     * The collection is created when this method is called for the first time
-     * and returned in response to all subsequent calls. This method may return
-     * different collections when multiple concurrent calls occur, since no
-     * synchronization is performed.
-     * </p>
-     *
-     * @return a collection of the values contained in this map.
-     */
-    @Override public Collection<V> values() {
-        Collection<V> vs = values;
-        return (vs != null) ? vs : (values = new Values());
-    }
-
-    /**
-     * Returns a set containing all of the mappings in this map. Each mapping is
-     * an instance of {@link Map.Entry}. As the set is backed by this map,
-     * changes in one will be reflected in the other.
-     *
-     * @return a set of the mappings.
-     */
-    public Set<Entry<K, V>> entrySet() {
-        Set<Entry<K, V>> es = entrySet;
-        return (es != null) ? es : (entrySet = new EntrySet());
-    }
-
-    static class HashMapEntry<K, V> implements Entry<K, V> {
-        final K key;
-        V value;
-        final int hash;
-        HashMapEntry<K, V> next;
-
-        HashMapEntry(K key, V value, int hash, HashMapEntry<K, V> next) {
-            this.key = key;
-            this.value = value;
-            this.hash = hash;
-            this.next = next;
-        }
-
-        public final K getKey() {
-            return key;
-        }
-
-        public final V getValue() {
-            return value;
-        }
-
-        public final V setValue(V value) {
-            V oldValue = this.value;
-            this.value = value;
-            return oldValue;
-        }
-
-        @Override public final boolean equals(Object o) {
-            if (!(o instanceof Entry)) {
-                return false;
-            }
-            Entry<?, ?> e = (Entry<?, ?>) o;
-            return Objects.equal(e.getKey(), key)
-                    && Objects.equal(e.getValue(), value);
-        }
-
-        @Override public final int hashCode() {
-            return (key == null ? 0 : key.hashCode()) ^
-                    (value == null ? 0 : value.hashCode());
-        }
-
-        @Override public final String toString() {
-            return key + "=" + value;
-        }
-    }
-
-    private abstract class HashIterator {
-        int nextIndex;
-        HashMapEntry<K, V> nextEntry = entryForNullKey;
-        HashMapEntry<K, V> lastEntryReturned;
-        int expectedModCount = modCount;
-
-        HashIterator() {
-            if (nextEntry == null) {
-                HashMapEntry<K, V>[] tab = table;
-                HashMapEntry<K, V> next = null;
-                while (next == null && nextIndex < tab.length) {
-                    next = tab[nextIndex++];
-                }
-                nextEntry = next;
-            }
-        }
-
-        public boolean hasNext() {
-            return nextEntry != null;
-        }
-
-        HashMapEntry<K, V> nextEntry() {
-            if (modCount != expectedModCount)
-                throw new ConcurrentModificationException();
-            if (nextEntry == null)
-                throw new NoSuchElementException();
-
-            HashMapEntry<K, V> entryToReturn = nextEntry;
-            HashMapEntry<K, V>[] tab = table;
-            HashMapEntry<K, V> next = entryToReturn.next;
-            while (next == null && nextIndex < tab.length) {
-                next = tab[nextIndex++];
-            }
-            nextEntry = next;
-            return lastEntryReturned = entryToReturn;
-        }
-
-        public void remove() {
-            if (lastEntryReturned == null)
-                throw new IllegalStateException();
-            if (modCount != expectedModCount)
-                throw new ConcurrentModificationException();
-            HashMap.this.remove(lastEntryReturned.key);
-            lastEntryReturned = null;
-            expectedModCount = modCount;
-        }
-    }
-
-    private final class KeyIterator extends HashIterator
-            implements Iterator<K> {
-        public K next() { return nextEntry().key; }
-    }
-
-    private final class ValueIterator extends HashIterator
-            implements Iterator<V> {
-        public V next() { return nextEntry().value; }
-    }
-
-    private final class EntryIterator extends HashIterator
-            implements Iterator<Entry<K, V>> {
-        public Entry<K, V> next() { return nextEntry(); }
-    }
-
-    /**
-     * Returns true if this map contains the specified mapping.
-     */
-    private boolean containsMapping(Object key, Object value) {
-        if (key == null) {
-            HashMapEntry<K, V> e = entryForNullKey;
-            return e != null && Objects.equal(value, e.value);
-        }
-
-        int hash = Collections.secondaryHash(key);
-        HashMapEntry<K, V>[] tab = table;
-        int index = hash & (tab.length - 1);
-        for (HashMapEntry<K, V> e = tab[index]; e != null; e = e.next) {
-            if (e.hash == hash && key.equals(e.key)) {
-                return Objects.equal(value, e.value);
-            }
-        }
-        return false; // No entry for key
-    }
-
-    /**
-     * Removes the mapping from key to value and returns true if this mapping
-     * exists; otherwise, returns does nothing and returns false.
-     */
-    private boolean removeMapping(Object key, Object value) {
-        if (key == null) {
-            HashMapEntry<K, V> e = entryForNullKey;
-            if (e == null || !Objects.equal(value, e.value)) {
-                return false;
-            }
-            entryForNullKey = null;
-            modCount++;
-            size--;
-            postRemove(e);
-            return true;
-        }
-
-        int hash = Collections.secondaryHash(key);
-        HashMapEntry<K, V>[] tab = table;
-        int index = hash & (tab.length - 1);
-        for (HashMapEntry<K, V> e = tab[index], prev = null;
-                e != null; prev = e, e = e.next) {
-            if (e.hash == hash && key.equals(e.key)) {
-                if (!Objects.equal(value, e.value)) {
-                    return false;  // Map has wrong value for key
-                }
-                if (prev == null) {
-                    tab[index] = e.next;
-                } else {
-                    prev.next = e.next;
-                }
-                modCount++;
-                size--;
-                postRemove(e);
-                return true;
-            }
-        }
-        return false; // No entry for key
-    }
-
-    // Subclass (LinkedHashMap) overrides these for correct iteration order
-    Iterator<K> newKeyIterator() { return new KeyIterator();   }
-    Iterator<V> newValueIterator() { return new ValueIterator(); }
-    Iterator<Entry<K, V>> newEntryIterator() { return new EntryIterator(); }
-
-    private final class KeySet extends AbstractSet<K> {
-        public Iterator<K> iterator() {
-            return newKeyIterator();
-        }
-        public int size() {
-            return size;
-        }
-        public boolean isEmpty() {
-            return size == 0;
-        }
-        public boolean contains(Object o) {
-            return containsKey(o);
-        }
-        public boolean remove(Object o) {
-            int oldSize = size;
-            HashMap.this.remove(o);
-            return size != oldSize;
-        }
-        public void clear() {
-            HashMap.this.clear();
-        }
-    }
-
-    private final class Values extends AbstractCollection<V> {
-        public Iterator<V> iterator() {
-            return newValueIterator();
-        }
-        public int size() {
-            return size;
-        }
-        public boolean isEmpty() {
-            return size == 0;
-        }
-        public boolean contains(Object o) {
-            return containsValue(o);
-        }
-        public void clear() {
-            HashMap.this.clear();
-        }
-    }
-
-    private final class EntrySet extends AbstractSet<Entry<K, V>> {
-        public Iterator<Entry<K, V>> iterator() {
-            return newEntryIterator();
-        }
-        public boolean contains(Object o) {
-            if (!(o instanceof Entry))
-                return false;
-            Entry<?, ?> e = (Entry<?, ?>) o;
-            return containsMapping(e.getKey(), e.getValue());
-        }
-        public boolean remove(Object o) {
-            if (!(o instanceof Entry))
-                return false;
-            Entry<?, ?> e = (Entry<?, ?>)o;
-            return removeMapping(e.getKey(), e.getValue());
-        }
-        public int size() {
-            return size;
-        }
-        public boolean isEmpty() {
-            return size == 0;
-        }
-        public void clear() {
-            HashMap.this.clear();
-        }
-    }
-
-    private static final long serialVersionUID = 362498820763181265L;
-
-    private static final ObjectStreamField[] serialPersistentFields = {
-        new ObjectStreamField("loadFactor", float.class)
-    };
-
-    private void writeObject(ObjectOutputStream stream) throws IOException {
-        // Emulate loadFactor field for other implementations to read
-        ObjectOutputStream.PutField fields = stream.putFields();
-        fields.put("loadFactor", DEFAULT_LOAD_FACTOR);
-        stream.writeFields();
-
-        stream.writeInt(table.length); // Capacity
-        stream.writeInt(size);
-        for (Entry<K, V> e : entrySet()) {
-            stream.writeObject(e.getKey());
-            stream.writeObject(e.getValue());
-        }
-    }
-
-    private void readObject(ObjectInputStream stream) throws IOException,
-            ClassNotFoundException {
-        stream.defaultReadObject();
-        int capacity = stream.readInt();
-        if (capacity < 0) {
-            throw new InvalidObjectException("Capacity: " + capacity);
-        }
-        if (capacity < MINIMUM_CAPACITY) {
-            capacity = MINIMUM_CAPACITY;
-        } else if (capacity > MAXIMUM_CAPACITY) {
-            capacity = MAXIMUM_CAPACITY;
-        } else {
-            capacity = Collections.roundUpToPowerOfTwo(capacity);
-        }
-        makeTable(capacity);
-
-        int size = stream.readInt();
-        if (size < 0) {
-            throw new InvalidObjectException("Size: " + size);
-        }
-
-        init(); // Give subclass (LinkedHashMap) a chance to initialize itself
-        for (int i = 0; i < size; i++) {
-            @SuppressWarnings("unchecked") K key = (K) stream.readObject();
-            @SuppressWarnings("unchecked") V val = (V) stream.readObject();
-            constructorPut(key, val);
-        }
-    }
 }
 
 ```
