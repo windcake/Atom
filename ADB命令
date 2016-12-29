@@ -1,0 +1,5 @@
+
+日志抓取
+adb shell
+logcat -c
+logcat -v time | grep aaa

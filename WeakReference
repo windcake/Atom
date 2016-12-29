@@ -24,7 +24,13 @@ enqueue()
 
 满足如下几点的时候，GC就认为它是若引用。
 
+强可及
 
+弱引用是如何被JAVA虚拟机识别出来的
+
+只存在WeakHashMap里的键值对，来一次GC之后，只被这个弱引用引用的就收走了。
+但是key和value还在WeakHashMap里占着位置。
+需要调用poll方法把它找出来，然后remove掉。
 
 
 
@@ -35,3 +41,119 @@ SoftReference as late as possible
 
 WeakReference as soon as
 只要它只是若引用，它就会被清理。
+
+referenceQueue在WeakHashMap的构造函数里初始化。
+Entry继承自WeakReference
+
+这个weak到底weak的是谁？是key
+
+put方法会将Entry和Queue联系起来
+
+```
+public V put(K key, V value) {
+       poll();
+       int index = 0;
+       Entry<K, V> entry;
+       if (key != null) {
+        // 在数组里索引出 entry
+           index = (Collections.secondaryHash(key) & 0x7FFFFFFF) % elementData.length;
+           entry = elementData[index];
+          // 如果冲突，在链表里依次往下拿，一直到最后一个。
+           while (entry != null && !key.equals(entry.get())) {
+            //  为空跳出，也就是队尾。
+            // key相同跳出，需要覆盖。
+               entry = entry.next;
+           }
+       } else {
+        //  key == null entry在第一个
+           entry = elementData[0];
+           while (entry != null && !entry.isNull) {
+             //  为空跳出，也就是队尾。
+             // key相同跳出，需要覆盖。
+               entry = entry.next;
+           }
+       }
+
+      //  下边的逻辑也分两个，一个是空，也就是队尾。
+       if (entry == null) {
+           modCount++;
+           if (++elementCount > threshold) {
+               rehash();
+               index = key == null ? 0 : (Collections.secondaryHash(key) & 0x7FFFFFFF)
+                       % elementData.length;
+           }
+           entry = new Entry<K, V>(key, value, referenceQueue);
+          //  插入到链表头部
+           entry.next = elementData[index];
+           elementData[index] = entry;
+           return null;
+       }
+      //  另一个是key相同，然后替换value。
+       V result = entry.value;
+       entry.value = value;
+       return result;
+   }
+
+```
+// 这个方法运行后，就清除了。
+// 每次执行 put remove等方法 都会先执行这个方法。清除不用的key
+```
+void poll() {
+       Entry<K, V> toRemove;
+       while ((toRemove = (Entry<K, V>) referenceQueue.poll()) != null) {
+           removeEntry(toRemove);
+       }
+   }
+```
+
+removeEntry方法
+```
+void removeEntry(Entry<K, V> toRemove) {
+       Entry<K, V> entry, last = null;
+       int index = (toRemove.hash & 0x7FFFFFFF) % elementData.length;
+       entry = elementData[index];
+       // Ignore queued entries which cannot be found, the user could
+       // have removed them before they were queued, i.e. using clear()
+       while (entry != null) {
+           if (toRemove == entry) {
+               modCount++;
+               if (last == null) {
+                   elementData[index] = entry.next;
+               } else {
+                   last.next = entry.next;
+               }
+               elementCount--;
+               break;
+           }
+           last = entry;
+           entry = entry.next;
+       }
+   }
+
+```
+JAVA的expungeStaleEntries方法
+private void expungeStaleEntries() {
+    Entry<K,V> e;
+        while ( (e = (Entry<K,V>) queue.poll()) != null) {
+            int h = e.hash;
+            int i = indexFor(h, table.length);
+
+            Entry<K,V> prev = table[i];
+            Entry<K,V> p = prev;
+            while (p != null) {
+                Entry<K,V> next = p.next;
+                if (p == e) {
+                    if (prev == e)
+                        table[i] = next;
+                    else
+                        prev.next = next;
+                    e.next = null;  // Help GC
+                    e.value = null; //  "   "
+                    size--;
+                    break;
+                }
+                prev = p;
+                p = next;
+            }
+        }
+    }
