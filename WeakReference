@@ -5,6 +5,8 @@
 他是一个抽象类，除了系统提供的子类，不能创建别的子类。
 也不建议这么做，因为引用和GC是息息相关的。
 
+应该明确所谓强引用，和其他三种引用的联系和区别。
+
 系统提供了三种引用类型，他们依次减弱：
 SoftReference
 WeakReference
@@ -41,7 +43,16 @@ JAVA只有一种引用方式，就是引用妈。
 虚引用与软引用和弱引用的一个区别在于：虚引用必须和引用队列 （ReferenceQueue）联合使用。
 当垃圾回收器准备回收一个对象时，如果发现它还有虚引用，
 就会在回收对象的内存之前，把这个虚引用加入到与之 关联的引用队列中。
+ReferenceQueue queue = new ReferenceQueue();
+SoftReference ref = new SoftReference(aMyObject, queue);
+这样的话，是把ref这个SoftReference的强引用
 
+
+当软可及对象被回收之后，虽然这个SoftReference对象的get()方法返回null,
+但这个SoftReference对象已经不再具有存在的价值，
+需要一个适当的清除机制，避免大量SoftReference对象带来的内存泄漏。
+GC来了之后，软引用引用的对象被清除了，但这个软引用并没有被清除。
+所以需要一个机制来清除这个软引用，这也就是ReferenceQueue的用处所在。
 
 
 
