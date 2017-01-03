@@ -71,6 +71,11 @@ put方法会将Entry和Queue联系起来
 WeakHashMap的key是弱引用的，但是它的value是强引用。
 
 一旦WeakReference返回null，说明这个弱引用引用的对象被回收了，那么这个弱引用也就没什么用了。
+此时就有必要进行一些清理工作。
+比如WeakHashMap,key被回收之后（key被回收的原理），其对应的Entry也应该被回收。
+于是执行了poll方法回收Entry。
+ReferenceQueue这个类使跟踪一个被回收的引用变的很简单。在弱引用的构造方法中传入一个queue之后，
+当这个弱引用指向的对象被回收之后，这个弱引用会自动被加入Queue。然后就可以遍历这个QUeue进行清理工作。
 
 
 
@@ -162,6 +167,8 @@ public V put(K key, V value) {
 // 每次执行 put remove等方法 都会先执行这个方法。清除不用的key
 // poll一遍，不为空的都删除。删除的是Entry。
 // poll里是数据是什么时候添加进去的？ 这里边添加的是什么呢?目前来看是Entery
+// 在构造方法里添加的明明是 key 但这里取出来的却强转成了 Entry
+// 
 ```
 void poll() {
        Entry<K, V> toRemove;
