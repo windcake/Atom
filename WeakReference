@@ -47,6 +47,10 @@ ReferenceQueue queue = new ReferenceQueue();
 SoftReference ref = new SoftReference(aMyObject, queue);
 这样的话，是把ref这个SoftReference的强引用
 
+queue的作用是GC通知程序哪个对象已经不可达了。
+
+应该从Android的GC算法谈起
+
 
 当软可及对象被回收之后，虽然这个SoftReference对象的get()方法返回null,
 但这个SoftReference对象已经不再具有存在的价值，
@@ -54,6 +58,11 @@ SoftReference ref = new SoftReference(aMyObject, queue);
 GC来了之后，软引用引用的对象被清除了，但这个软引用并没有被清除。
 所以需要一个机制来清除这个软引用，这也就是ReferenceQueue的用处所在。
 
+什么样的强引用可以被回收？
+有向图，可达。
+如果一个强引用只引用一个对象，那么它就不可达了，不可达之后就可以被GC。
+对象落单之后，就会被回收。
+所以之前才说 硬可达 软可达 弱可达
 
 
 当一个对象
@@ -179,7 +188,7 @@ public V put(K key, V value) {
 // poll一遍，不为空的都删除。删除的是Entry。
 // poll里是数据是什么时候添加进去的？ 这里边添加的是什么呢?目前来看是Entery
 // 在构造方法里添加的明明是 key 但这里取出来的却强转成了 Entry
-// 
+//
 ```
 void poll() {
        Entry<K, V> toRemove;
