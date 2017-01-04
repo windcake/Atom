@@ -52,6 +52,11 @@ queue的作用是GC通知程序哪个对象已经不可达了。
 应该从Android的GC算法谈起
 
 
+应该做个试验，
+如果queue只是放的Reference。那么GC之后，内存应该就已经减小了。
+那么就只起到了防止内存泄漏的作用，而没有起到缓存的作用。
+
+
 当软可及对象被回收之后，虽然这个SoftReference对象的get()方法返回null,
 但这个SoftReference对象已经不再具有存在的价值，
 需要一个适当的清除机制，避免大量SoftReference对象带来的内存泄漏。
