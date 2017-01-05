@@ -102,7 +102,8 @@ WeakHashMap的key是弱引用的，但是它的value是强引用。
 ReferenceQueue这个类使跟踪一个被回收的引用变的很简单。在弱引用的构造方法中传入一个queue之后，
 当这个弱引用指向的对象被回收之后，这个弱引用会自动被加入Queue。然后就可以遍历这个QUeue进行清理工作。
 
-
+JVM在GC的时候帮我们把WeakHashMap中的key的内存释放掉了，
+那么 WeakHashMap中Entry数据怎么释放，看看 WeakHashMap的 ReferenceQueue怎么起的作用？
 
 
 Entry的数据结构
@@ -118,6 +119,7 @@ private static final class Entry<K, V> extends WeakReference<K> implements
             R get(Map.Entry<K, V> entry);
         }
         Entry(K key, V object, ReferenceQueue<K> queue) {
+          // 这个key被包装成了，
             super(key, queue);
             isNull = key == null;
             hash = isNull ? 0 : Collections.secondaryHash(key);
@@ -193,6 +195,7 @@ public V put(K key, V value) {
 // poll一遍，不为空的都删除。删除的是Entry。
 // poll里是数据是什么时候添加进去的？ 这里边添加的是什么呢?目前来看是Entery
 // 在构造方法里添加的明明是 key 但这里取出来的却强转成了 Entry
+// poll的源码在ReferenceQueue里，每poll一次，返回并删除这个引用。
 //
 ```
 void poll() {
