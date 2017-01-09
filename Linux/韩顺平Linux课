@@ -1,0 +1,12 @@
+
+
+
+环境配置文件
+/etc/profile
+
+tar -zxvf aaa.tar.gz 可以直接安装
+*.bin 文件 ./*.bin 安装
+
+sda sd代表硬盘SCASI种类 还有IDE类的标识为 hda
+    a代表第一块硬盘
+    1代表第一个分区
