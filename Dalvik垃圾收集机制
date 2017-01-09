@@ -1,0 +1,374 @@
+
+
+
+mmap
+是一种内存映射文件的方法
+实现文件磁盘地址和进程虚拟地址的一一对应关系。
+
+dlmalloc
+Android中的内存分配器，由Doug Lea在1987年开发完成
+
+malloc
+分配长度为num_bytes字节的内存块
+
+
+为了管理这些内存，Dalvik需要一些数据结构来标识各种状态信息。
+
+Card Table
+记录GC过程中对象的引用情况，以便实现并发GC
+
+HeapBitmap:Live Heap Bitmap
+记录上次GC之后还存活的对象
+HeapBitmap:Mark Heap Bitmap
+当前GC中存活的对象
+这样上次存活，但这次没存活的对象，就是需要释放的。
+
+Dalvik使用标记-清除（Mark-Sweep）算法来进行GC
+通过Mark Stack来实现递归检查被引用的对象
+
+Dalvik在启动过程中，会调用dalvik/vm/alloc/Alloc.cpp中的dvmGcStartup函数来创建JAVA堆
+
+```
+bool dvmGcStartup()
+{
+    dvmInitMutex(&gDvm.gcHeapLock);
+    pthread_cond_init(&gDvm.gcHeapCond, NULL);
+    return dvmHeapStartup();
+}
+```
+
+```
+bool dvmHeapStartup()
+{
+    GcHeap *gcHeap;
+
+    if (gDvm.heapGrowthLimit == 0) {
+        gDvm.heapGrowthLimit = gDvm.heapMaximumSize;
+    }
+// 起始大小 最大值 增长上限
+// 创建JAVA堆
+    gcHeap = dvmHeapSourceStartup(gDvm.heapStartingSize,
+                                  gDvm.heapMaximumSize,
+                                  gDvm.heapGrowthLimit);
+    if (gcHeap == NULL) {
+        return false;
+    }
+    gcHeap->ddmHpifWhen = 0;
+    gcHeap->ddmHpsgWhen = 0;
+    gcHeap->ddmHpsgWhat = 0;
+    gcHeap->ddmNhsgWhen = 0;
+    gcHeap->ddmNhsgWhat = 0;
+    gDvm.gcHeap = gcHeap;
+
+    /* Set up the lists we'll use for cleared reference objects.
+     */
+    gcHeap->clearedReferences = NULL;
+// 为这个堆创建一个Card Table
+    if (!dvmCardTableStartup(gDvm.heapMaximumSize, gDvm.heapGrowthLimit)) {
+        LOGE_HEAP("card table startup failed.");
+        return false;
+    }
+
+    return true;
+}
+```
+
+接下来分析dvmHeapSourceStartup的实现
+它定义在dalvik/vm/alloc/HeapSource.cpp
+
+```
+GcHeap* dvmHeapSourceStartup(size_t startSize, size_t maximumSize,
+                             size_t growthLimit)
+{
+    GcHeap *gcHeap;
+    HeapSource *hs;
+    mspace msp;
+    size_t length;
+    void *base;
+
+    assert(gHs == NULL);
+
+    if (!(startSize <= growthLimit && growthLimit <= maximumSize)) {
+        ALOGE("Bad heap size parameters (start=%zd, max=%zd, limit=%zd)",
+             startSize, maximumSize, growthLimit);
+        return NULL;
+    }
+
+    /*
+     * Allocate a contiguous region of virtual memory to subdivided
+     * among the heaps managed by the garbage collector.
+     分配一块连续的虚拟内存，然后再被GC细分。
+     */
+    //  对齐到内存页边界
+    length = ALIGN_UP_TO_PAGE_SIZE(maximumSize);
+    // 分配大小为length的匿名共享内存，起始地址为base
+    base = dvmAllocRegion(length, PROT_NONE, gDvm.zygote ? "dalvik-zygote" : "dalvik-heap");
+    if (base == NULL) {
+        return NULL;
+    }
+
+    /* Create an unlocked dlmalloc mspace to use as
+     * a heap source.
+     */
+    //  将前边分配的匿名共享内存封装成mspace
+    msp = createMspace(base, kInitialMorecoreStart, startSize);
+    if (msp == NULL) {
+        goto fail;
+    }
+// 分配GcHeap结构体gcHeap和HeapSource结构体hs，用来维护Java堆的信息
+    gcHeap = (GcHeap *)calloc(1, sizeof(*gcHeap));
+    if (gcHeap == NULL) {
+        LOGE_HEAP("Can't allocate heap descriptor");
+        goto fail;
+    }
+
+    hs = (HeapSource *)calloc(1, sizeof(*hs));
+    if (hs == NULL) {
+        LOGE_HEAP("Can't allocate heap source");
+        free(gcHeap);
+        goto fail;
+    }
+
+    hs->targetUtilization = gDvm.heapTargetUtilization * HEAP_UTILIZATION_MAX;
+    hs->minFree = gDvm.heapMinFree;
+    hs->maxFree = gDvm.heapMaxFree;
+    hs->startSize = startSize;
+    hs->maximumSize = maximumSize;
+    hs->growthLimit = growthLimit;
+    hs->idealSize = startSize;
+    hs->softLimit = SIZE_MAX;    // no soft limit at first
+    hs->numHeaps = 0;
+    hs->sawZygote = gDvm.zygote;
+    hs->nativeBytesAllocated = 0;
+    hs->nativeFootprintGCWatermark = startSize;
+    hs->nativeFootprintLimit = startSize * 2;
+    hs->nativeNeedToRunFinalization = false;
+    hs->hasGcThread = false;
+    hs->heapBase = (char *)base;
+    hs->heapLength = length;
+
+    if (hs->maxFree > hs->maximumSize) {
+      hs->maxFree = hs->maximumSize;
+    }
+    if (hs->minFree < CONCURRENT_START) {
+      hs->minFree = CONCURRENT_START;
+    } else if (hs->minFree > hs->maxFree) {
+      hs->minFree = hs->maxFree;
+    }
+
+    if (!addInitialHeap(hs, msp, growthLimit)) {
+        LOGE_HEAP("Can't add initial heap");
+        goto fail;
+    }
+    // 初始化Live BitMap
+    if (!dvmHeapBitmapInit(&hs->liveBits, base, length, "dalvik-bitmap-1")) {
+        LOGE_HEAP("Can't create liveBits");
+        goto fail;
+    }
+      // 初始化Mark BitMap
+    if (!dvmHeapBitmapInit(&hs->markBits, base, length, "dalvik-bitmap-2")) {
+        LOGE_HEAP("Can't create markBits");
+        dvmHeapBitmapDelete(&hs->liveBits);
+        goto fail;
+    }
+    // 初始化Mark Stack 以上三个都和GC有关
+    if (!allocMarkStack(&gcHeap->markContext.stack, hs->maximumSize)) {
+        ALOGE("Can't create markStack");
+        dvmHeapBitmapDelete(&hs->markBits);
+        dvmHeapBitmapDelete(&hs->liveBits);
+        goto fail;
+    }
+    // 将上面创建的信息保存在gcHeap中
+    gcHeap->markContext.bitmap = &hs->markBits;
+    gcHeap->heapSource = hs;
+
+    gHs = hs;
+    // 返回这个gcHeap
+    return gcHeap;
+
+fail:
+    munmap(base, length);
+    return NULL;
+}
+
+```
+
+然后依次分析上边所调用的函数
+这个函数定义在文件dalvik/vm/Misc.cpp中
+```
+ // 使用ashmem和mmap分配一块内存区域
+void *dvmAllocRegion(size_t byteCount, int prot, const char *name) {
+    void *base;
+    int fd, ret;
+
+    byteCount = ALIGN_UP_TO_PAGE_SIZE(byteCount);
+    // 创建一块匿名共享内存 Anonymous shared Memory
+    fd = ashmem_create_region(name, byteCount);
+    if (fd == -1) {
+        return NULL;
+    }
+    base = mmap(NULL, byteCount, prot, MAP_PRIVATE, fd, 0);
+    ret = close(fd);
+    if (base == MAP_FAILED) {
+        return NULL;
+    }
+    if (ret == -1) {
+        munmap(base, byteCount);
+        return NULL;
+    }
+    return base;
+}
+
+```
+createMspace函数，将前边分配的匿名共享内存封装成mspace。
+begin是前边创建匿名共享内存的起始地址，也就是JAVA堆的起始地址。
+create_mspace_with_base是c库提供的函数
+定义在文件dalvik/vm/alloc/HeapSource.cpp
+```
+static mspace createMspace(void* begin, size_t morecoreStart, size_t startingSize)
+{
+    // Clear errno to allow strerror on error.
+    errno = 0;
+    // Allow access to inital pages that will hold mspace.
+    mprotect(begin, morecoreStart, PROT_READ | PROT_WRITE);
+    // Create mspace using our backing storage starting at begin and with a footprint of
+    // morecoreStart. Don't use an internal dlmalloc lock. When morecoreStart bytes of memory are
+    // exhausted morecore will be called.
+    // 将JAVA堆封装成mspace
+    mspace msp = create_mspace_with_base(begin, morecoreStart, false /*locked*/);
+    if (msp != NULL) {
+        // Do not allow morecore requests to succeed beyond the starting size of the heap.
+        // 设置mspace的大小为Java堆的起始大小
+        mspace_set_footprint_limit(msp, startingSize);
+    } else {
+        ALOGE("create_mspace_with_base failed %s", strerror(errno));
+    }
+    return msp;
+}
+```
+分配GcHeap结构体gcHeap和HeapSource结构体hs，用来维护Java堆的信息
+然后调用addInitialHeap方法，它定义在dalvik/vm/alloc/HeapSource.cpp中
+```
+static bool addInitialHeap(HeapSource *hs, mspace msp, size_t maximumSize)
+{
+    assert(hs != NULL);
+    assert(msp != NULL);
+    if (hs->numHeaps != 0) {
+        return false;
+    }
+    hs->heaps[0].msp = msp;
+    hs->heaps[0].maximumSize = maximumSize;
+    hs->heaps[0].concurrentStartBytes = SIZE_MAX;
+    hs->heaps[0].base = hs->heapBase;
+    hs->heaps[0].limit = hs->heapBase + maximumSize;
+    hs->heaps[0].brk = hs->heapBase + kInitialMorecoreStart;
+    hs->numHeaps = 1;
+    return true;
+}
+```
+HeapSource也定义在dalvik/vm/alloc/HeapSource.cpp中
+来看一下heaps的定义部分
+```
+struct HeapSource {
+
+    /* The heaps; heaps[0] is always the active heap,
+     * which new objects should be allocated from.
+     */
+    //  heaps[0]就是active heap。新的对象放在这
+    // HEAP_SOURCE_MAX_HEAP_COUNT定义在HeapSource.h头文件中
+    // 默认值是2 也就是Active Heap和Zygote Heap
+    Heap heaps[HEAP_SOURCE_MAX_HEAP_COUNT];
+
+    /* The current number of heaps.
+     */
+    //  当前heaps的数量
+    size_t numHeaps;
+
+};
+```
+来看一下Heap结构体，它也定义在也定义在dalvik/vm/alloc/HeapSource.cpp中
+struct Heap {
+    /* The mspace to allocate from.
+     */
+    //  堆所使用的内存块
+    mspace msp;
+
+    /* The largest size that this heap is allowed to grow to.
+     */
+    //  堆可以使用的最大值
+    size_t maximumSize;
+
+    /* Number of bytes allocated from this mspace for objects,
+     * including any overhead.  This value is NOT exact, and
+     * should only be used as an input for certain heuristics.
+     */
+    //  已经分配的字节数
+    size_t bytesAllocated;
+
+    /* Number of bytes allocated from this mspace at which a
+     * concurrent garbage collection will be started.
+     */
+    //  触发并发GC的已经分配字节数的阈值
+    size_t concurrentStartBytes;
+
+    /* Number of objects currently allocated from this mspace.
+     */
+    //  已经分配的对象个数
+    size_t objectsAllocated;
+
+    /*
+     * The lowest address of this heap, inclusive.
+     */
+    //  堆内存的起始地址
+    char *base;
+
+    /*
+     * The highest address of this heap, exclusive.
+     */
+    //  堆内存的结束地址，也就是最大地址。
+    char *limit;
+
+    /*
+     * If the heap has an mspace, the current high water mark in
+     * allocations requested via dvmHeapSourceMorecore.
+     */
+    //  当前堆所分配的最大内存值
+    char *brk;
+};
+
+
+
+## preserveSomeSoftReferences
+```
+static void preserveSomeSoftReferences(Object **list)
+{
+    GcMarkContext *ctx = &gDvm.gcHeap->markContext;
+    size_t referentOffset = gDvm.offJavaLangRefReference_referent;
+    Object *clear = NULL;
+    size_t counter = 0;
+    while (*list != NULL) {
+        Object *ref = dequeuePendingReference(list);
+        Object *referent = dvmGetFieldObject(ref, referentOffset);
+        if (referent == NULL) {
+            /* Referent was cleared by the user during marking. */
+            continue;
+        }
+        bool marked = isMarked(referent, ctx);
+        if (!marked && ((++counter) & 1)) {
+            /* Referent is white and biased toward saving, mark it. */
+            markObject(referent, ctx);
+            marked = true;
+        }
+        if (!marked) {
+            /* Referent is white, queue it for clearing. */
+            enqueuePendingReference(ref, &clear);
+        }
+    }
+    *list = clear;
+    /*
+     * Restart the mark with the newly black references added to the
+     * root set.
+     */
+    processMarkStack(ctx);
+}
+```

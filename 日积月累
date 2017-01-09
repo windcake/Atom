@@ -206,3 +206,6 @@ git add README.md
 git commit -m "first commit"
 git remote add origin https://github.com/windcake/OkHttpAnalysis.git
 git push -u origin master
+
+27 OpenGrok索引代码函数
+java -Xmx524m -jar opengrok.jar -W "C:\\opengrok-0.12.1\\data\\configuration.xml" -P -S -v -s "C:\\opengrok-0.12.1\\source" -d "C:\\opengrok-0.12.1\\data"

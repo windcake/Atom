@@ -3,3 +3,6 @@
 adb shell
 logcat -c
 logcat -v time | grep aaa
+
+输出到日志
+logcat -v time >log.log
