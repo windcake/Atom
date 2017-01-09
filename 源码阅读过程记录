@@ -53,3 +53,20 @@ A B 分别指向一个对象C
 A = null之后， B的值是多少？
 
 int型的Hash码是它自己么？
+
+
+ArrayList
+LinkedList
+HashMap
+LinkedHashMap
+WeakHashMap&WeakReference
+LRUCache
+DiskLRUCache
+
+Volley
+OkHttp
+Rerofit
+Picasso
+Glide
+Gson
+FastJson
