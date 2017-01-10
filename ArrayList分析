@@ -111,11 +111,17 @@ MIN_CAPACITY_INCREMENT是最小容量常亮，默认值是12
         Object[] a = array;
         int s = size;
         if (index > s || index < 0) {
+          // 一个耳熟能详的异常
             throwIndexOutOfBoundsException(index, s);
         }
 //    当前内容小于List容量，加入一个不会越界。
         if (s < a.length) {
           // 把index之后的数据都向后拱一个位置，以便留出index空位
+          // src:源数组；
+          // srcPos:源数组要复制的起始位置；
+          // dest:目的数组；
+          // destPos:目的数组放置的起始位置；
+          // length:复制的长度。
             System.arraycopy(a, index, a, index + 1, s - index);
         } else {
             // new一个扩大容量的list，然后分两步。
