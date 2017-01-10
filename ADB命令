@@ -6,3 +6,12 @@ logcat -v time | grep aaa
 
 输出到日志
 logcat -v time >log.log
+
+启动Settings
+adb shell am start -n com.android.settings/com.android.settings.Settings
+
+
+
+关键字紫 c66cad
+方法名兰 5b8ea8
+变量红  e06c75

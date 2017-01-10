@@ -10,6 +10,10 @@ voidLink的next就是firstLink
 
 唯一发现有个用处，好象是在JDK里设计缓存策略时有用。
 
+
+
+
+
 ```
 public class LinkedList<E> extends AbstractSequentialList<E> implements
         List<E>, Deque<E>, Queue<E>, Cloneable, Serializable {
