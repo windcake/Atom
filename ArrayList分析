@@ -3,8 +3,129 @@
 ArrayList简介
 ArrayList是我们十分常用的一个类，它的底层是由数组实现。不同于基本数组的是，它的容量能自动增长。
 
+数据结构
+如上所述，ArrayList其实是对数组的包装，无论是add方法，亦或是remove,都是操作一个全局的数组。
+这个全局数组定义如下
+```
+Object[] array;
+```
+JAVA中所有所有对象都继承自Object，所以array可以装下所有对象。
 
-## 讲一下ArrayList的扩容规则以及如何扩容
+初始化
+要把刚刚声明的array初始化，并指定其容量为capacity，只需如下代码即可实现。
+```
+array =  new Object[capacity];
+```
+所以ArrayList指定容量的构造函数如下
+```
+public ArrayList(int capacity) {
+    if (capacity < 0) {
+        throw new IllegalArgumentException("capacity < 0: " + capacity);
+    }
+    array = (capacity == 0 ? EmptyArray.OBJECT : new Object[capacity]);
+}
+```
+我们用这个构造函数初始化一个容量为9的list，并只允许它装入String类型的数据。
+```
+ArrayList<String> list = new ArrayList<>(7);
+```
+数组在初始化值是null,所以此时它在内存里应该是这样的。
+图
+使用add方法依次add进去"w"、"i"、"n"、"d"、"c"、"a"、这6个字符串类型的字母之后。
+取一下内存的快照应当如下
+图
+此时应当有两个疑问，按顺序add进去的元素会按顺序排列么？
+以及如果我再添加"k"、"e"两个数据，6加2就等于8了，list会做哪些工作来装第8个元素呢？
+
+##add方法和扩容
+刚才执行的add方法源码如下，它的功能是添加一个元素到ArrayList的尾部。
+```
+public boolean add(E object) {
+     Object[] a = array;
+     int s = size;
+     if (s == a.length) {
+         Object[] newArray = new Object[s +
+                 (s < (MIN_CAPACITY_INCREMENT / 2) ?
+                  MIN_CAPACITY_INCREMENT : s >> 1)];
+         System.arraycopy(a, 0, newArray, 0, s);
+         array = a = newArray;
+     }
+     a[s] = object;
+     size = s + 1;
+     modCount++;
+     return true;
+ }
+
+```
+此时我们再执行add方法，添加一个"k"。然后根据上边代码分析其运行。
+```
+list.add("k");
+```
+当前数组里的数据有6个，也就是size的值为6。
+而初始化的容量为8，即a.length为7。
+所以if条件下的代码不执行，而会顺序执行这句话。
+```
+a[s] = object
+```
+如下图所示，将object加入到s位置，就是尾部了。
+
+这个时候，最初初始化的array容量已满,也就是size和a.length已经相等了，但是还有"e"没有放进去。
+好，那我们继续放。
+```
+list.add("e");
+```
+此时会执行if语句里的代码，其实就是触发了扩容。
+扩容并不是增大原来数组的容量，而是new一个容量更大的数组，把小的旧数组里的数据复制到新的大数组去。
+然后全局的array指向这个新数组，虽然底层的数组已经不是原来的数组了，
+但在ArrayList使用者的角度看List还是那个List。
+MIN_CAPACITY_INCREMENT是最小容量常量，默认值是12
+如果当前容量小于 6（MIN_CAPACITY_INCREMENT / 2）就增加12（MIN_CAPACITY_INCREMENT）
+否则 就增加当前容量的一半 （s >> 1）
+因为add方法太常用了，所以上边那句话被直接写在了add方法里，省去子函数调用，以提高程序性能。
+图
+图
+图
+
+就像在食堂打饭，排队没事，但是加塞就不太好了。
+面向对象的原则是
+不能因为这个动作涉及道德评判就不实现。
+假如我发现我的字母写错了，我想写成"wind&cake"
+
+```
+list.add(4,"&");
+```
+
+```
+public void add(int index, E object) {
+        Object[] a = array;
+        int s = size;
+        if (index > s || index < 0) {
+            throwIndexOutOfBoundsException(index, s);
+        }
+
+        if (s < a.length) {
+            System.arraycopy(a, index, a, index + 1, s - index);
+        } else {
+            // assert s == a.length;
+            Object[] newArray = new Object[newCapacity(s)];
+            System.arraycopy(a, 0, newArray, 0, index);
+            System.arraycopy(a, index, newArray, index + 1, s - index);
+            array = a = newArray;
+        }
+        a[index] = object;
+        size = s + 1;
+        modCount++;
+    }
+```
+
+
+
+
+
+
+
+
+
 
 
 为了能看懂代码先讲一下arraycopy方法参数的意义
