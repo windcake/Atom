@@ -62,7 +62,7 @@ public boolean add(E object) {
 list.add("k");
 ```
 当前数组里的数据有6个，也就是size的值为6。
-而初始化的容量为8，即a.length为7。
+而初始化的容量为7，即a.length为7。
 所以if条件下的代码不执行，而会顺序执行这句话。
 ```
 a[s] = object
@@ -82,19 +82,21 @@ MIN_CAPACITY_INCREMENT是最小容量常量，默认值是12
 如果当前容量小于 6（MIN_CAPACITY_INCREMENT / 2）就增加12（MIN_CAPACITY_INCREMENT）
 否则 就增加当前容量的一半 （s >> 1）
 因为add方法太常用了，所以上边那句话被直接写在了add方法里，省去子函数调用，以提高程序性能。
+当然，它还被封装成了一个方法，在其他地方出没。
 图
 图
 图
 
-就像在食堂打饭，排队没事，但是加塞就不太好了。
-面向对象的原则是
-不能因为这个动作涉及道德评判就不实现。
+
+就像在食堂打饭，正常情况下新来一个人应当是去队尾排队。但也有人加塞。
 假如我发现我的字母写错了，我想写成"wind&cake"
+ArrayList也为我们提供了一个加塞方法，执行如下语句，即可完成。
 
 ```
 list.add(4,"&");
 ```
 
+是的，执行这条语句就能实现加塞操作。但是，它到底是加塞呢，还是说把索引为4的元素替换了呢。看一下源码吧。
 ```
 public void add(int index, E object) {
         Object[] a = array;
@@ -118,28 +120,26 @@ public void add(int index, E object) {
     }
 ```
 
-
-
-
-
-
-
-
-
-
-
-为了能看懂代码先讲一下arraycopy方法参数的意义
-public static void arraycopy(Object src,
-                             int srcPos,
-                             Object dest,
-                             int destPos,
-                             int length)
+接上文，此时size是8，而list在底层经过一次偷偷扩容之后变成了10。满足if条件会执行如下语句
+```
+System.arraycopy(a, index, a, index + 1, s - index);
+```
+这个函数定义在lang包下的System类里，它的参数意义依次如下。
 src:源数组；
 srcPos:源数组要复制的起始位置；
 dest:目的数组；
 destPos:目的数组放置的起始位置；
 length:复制的长度。
 
+此方法的原数组和目的数组可以相同，它在底层实现的时候是先将原数组拷贝到一个临时数组里去。
+然后再拷贝到目的数组。因此以上写法并不会出现问题。把它翻译成自然语言就是，把a数组中的数据从index开始复制s - index个，
+然后从a数组的index + 1
+
+图
+图
+
+
+然后附录里加上源码 就OK啦
 
 public class ArrayList<E> extends AbstractList<E> implements Cloneable, Serializable, RandomAccess {
 
