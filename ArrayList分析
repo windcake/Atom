@@ -143,8 +143,7 @@ length:复制的长度。
 
 public class ArrayList<E> extends AbstractList<E> implements Cloneable, Serializable, RandomAccess {
 
-ArrayList的最小增长容量，它是充分考虑了程序运行的时间和所占用的内存空间后所得出来的值。
-经过运行检验，确实非常合适。比RI制定的默认值10要好很多
+// ArrayList的最小增长容量，它是充分考虑了程序运行的时间和所占用的内存空间后所得出来的值。
     private static final int MIN_CAPACITY_INCREMENT = 12;
 
     // list中实际有多少个数据
@@ -184,10 +183,10 @@ ArrayList的最小增长容量，它是充分考虑了程序运行的时间和�
 
 // add方法
     @Override public boolean add(E object) {
-      // 为什么先把array赋给a
         Object[] a = array;
         int s = size;
         if (s == a.length) {
+          // 扩容
             Object[] newArray = new Object[s +
                     (s < (MIN_CAPACITY_INCREMENT / 2) ?
                      MIN_CAPACITY_INCREMENT : s >> 1)];
@@ -199,40 +198,13 @@ ArrayList的最小增长容量，它是充分考虑了程序运行的时间和�
         modCount++;
         return true;
     }
-如果当前size的值小于数组的长度，说明能装下新来的object，那么直接放在索引为size的位置
-也就是数组尾部。如下图。
-
-如果size的值等于数组的长度，说明当前数组装不下新来的obj，那么就会触发扩容。
-扩容并不是增大原来数组的容量，而是new一个容量更大的数组，把小的旧数组里的数据复制到新的大数组去。
-然后全局的array指向这个新数组，虽然底层的数组已经不是原来的数组了，
-但在ArrayList使用者的角度看List还是那个List。
-
-在Android6.0的源码中，ArrayList扩容使用的是如下策略
-```
-private static int newCapacity(int currentCapacity) {
-        int increment = (currentCapacity < (MIN_CAPACITY_INCREMENT / 2) ? MIN_CAPACITY_INCREMENT : currentCapacity >> 1);
-        return currentCapacity + increment;
-    }
-```
-MIN_CAPACITY_INCREMENT是最小容量常亮，默认值是12
-如果当前容量小于 6（MIN_CAPACITY_INCREMENT / 2）就增加12（MIN_CAPACITY_INCREMENT）
-否则 就增加当前容量的一半 （s >> 1）
-因为add方法太常用了，所以上边那句话被直接写在了add方法里，省去子函数调用，以提高程序性能。
-
-如果add一个 &，恰好触发扩容，那么它的过程如下：
-图
-图
-图
-
-
-
 
 // 在某个位置插入某个对象
     @Override public void add(int index, E object) {
         Object[] a = array;
         int s = size;
         if (index > s || index < 0) {
-          // 一个耳熟能详的异常
+          // 耳熟能详
             throwIndexOutOfBoundsException(index, s);
         }
 //    当前内容小于List容量，加入一个不会越界。
@@ -345,6 +317,7 @@ MIN_CAPACITY_INCREMENT是最小容量常亮，默认值是12
   // 保证集合能装下minimumCapacity这么多的数据
     public void ensureCapacity(int minimumCapacity) {
         Object[] a = array;
+        // 如果装不下，就new一个minimumCapacity容量的数组，然后装进去
         if (a.length < minimumCapacity) {
             Object[] newArray = new Object[minimumCapacity];
             System.arraycopy(a, 0, newArray, 0, size);

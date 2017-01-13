@@ -1,5 +1,40 @@
 
 
+
+
+###LinkedList简介
+LinkedList是List接口的一种实现，底层数据结构基于双向链表。除了List接口，它还实现了Queue和Deque接口。
+因为以上特点，在代码的注释中出现了如下叮咛。
+
+```
+的This class is primarily useful if you need queue-like behavior. It may also be useful as a list if you expect your lists to contain zero or one element, but still require the
+  ability to scale to slightly larger numbers of elements. In general, though, you should
+  probably use ArrayList if you don't need the queue-like behavior.
+
+  如果你需要queue-like操作，或者你的list大部分情况下都只有0或1个元素，但是也有变大的需求，那么它可以用。
+  否则建议使用ArrayList。
+
+```
+
+###数据结构
+
+```
+private static final class Link<ET> {
+       ET data;
+
+       Link<ET> previous, next;
+
+       Link(ET o, Link<ET> p, Link<ET> n) {
+           data = o;
+           previous = p;
+           next = n;
+       }
+   }
+```
+
+
+
+
 LinkedList是List接口的一种实现，数据结构基于双向链表。
 支持包括null在内的所有元素。
 有必要先解释一下双向链表，前一个对象
