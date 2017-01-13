@@ -2,9 +2,9 @@
 
 
 
-###LinkedList简介
+### LinkedList简介
 LinkedList是List接口的一种实现，底层数据结构基于双向链表。除了List接口，它还实现了Queue和Deque接口。
-因为以上特点，在代码的注释中出现了如下叮咛。
+可能是因为以上特点，在代码的注释中才出现了这样饶有意味的嘱托。
 
 ```
 的This class is primarily useful if you need queue-like behavior. It may also be useful as a list if you expect your lists to contain zero or one element, but still require the
@@ -16,8 +16,9 @@ LinkedList是List接口的一种实现，底层数据结构基于双向链表。
 
 ```
 
-###数据结构
-
+### 数据结构
+每个数据都存在这个Link结构里，它是组成双向链表的基本结构，无论是叫Link、Entry还是Node，它都由装数据的data和指向前后节点的
+previous及next组成。
 ```
 private static final class Link<ET> {
        ET data;
@@ -31,8 +32,115 @@ private static final class Link<ET> {
        }
    }
 ```
+其实说双向链表并不十分准确，更精确的说法应是双向循环链表，因为它的首尾是相连的。一个典型的双向循环链表如下
+图
 
+### 初始化
+因为LinkedList不涉及底层扩容，所以像ArrayList那样指定初始容量显然没有意义，LinkedList提供了有集合参数和没有参数
+的两种构造方法，且有参的内部调用了无参，所以从无参数的构造方法说起更具意义。
+```
+public LinkedList() {
+       voidLink = new Link<E>(null, null, null);
+       voidLink.previous = voidLink;
+       voidLink.next = voidLink;
+   }
+```
+voidLink是一个全局变量
+```
+Link<E> voidLink;
+```
+人如其名，voidLink的data、previous、next三个参数都被初始化成了null，然后将p和n都指向了自己。
+另外需要注意，虽然该构造方法里创建了voidLink节点，但是并没有将list的size属性+1。
+我们执行如下语句初始化一个LinkedList
 
+```
+LinkedList<String> list = new LinkedList<>();
+```
+此时它的结构应该如下
+
+图
+
+### add方法
+
+```
+list.add（"w"）;
+```
+
+```
+public boolean add(E object) {
+        return addLastImpl(object);
+    }
+
+    private boolean addLastImpl(E object) {
+        Link<E> oldLast = voidLink.previous;
+        Link<E> newLink = new Link<E>(object, oldLast, voidLink);
+        voidLink.previous = newLink;
+        oldLast.next = newLink;
+        size++;
+        modCount++;
+        return true;
+    }
+```
+首先oldLast指向voidLink
+
+然后newLink的p指向了oldLast，n指向了voidLink，其实都是指向同一块内存。
+图
+
+这样add操作就完成了。
+以上操作并不具有代表性，从一个空列表开始add不直观。
+加入现在列表里有win三个字母，然后加入d字母
+图
+
+此时oldLast是d
+
+然后newLink的p指向了oldLast，n指向了voidLink
+
+然后
+voidLink.previous = newLink;
+oldLast.next = newLink;
+
+其实再分析一个LinkedList的指定位置插入方法，会很能体现出该方法基于双向链表的优雅之处。
+但总抓着add方法不放也确实乏味。remove方法是add方法的相反，在效果上和实现上都是如此，所以
+我打算换一碗汤，来分析一下remove方法，也能体会到LinkedList对数据的组织。
+
+```
+public E remove(int location) {
+       if (location >= 0 && location < size) {
+           Link<E> link = voidLink;
+           if (location < (size / 2)) {
+               for (int i = 0; i <= location; i++) {
+                   link = link.next;
+               }
+           } else {
+               for (int i = size; i > location; i--) {
+                   link = link.previous;
+               }
+           }
+           Link<E> previous = link.previous;
+           Link<E> next = link.next;
+           previous.next = next;
+           next.previous = previous;
+           size--;
+           modCount++;
+           return link.data;
+       }
+       throw new IndexOutOfBoundsException();
+   }
+```
+第一个if是合法性检查，第二个if是看location是在前半部分还是后半部分，这样分情况查找速度会快。
+如果在前半部分则从voidLink开始通过next属性一路遍历，如果在后半部分则通过previous遍历。
+```
+list.remoe(1);
+```
+执行完for循环如下图
+
+然后执行查查行如下
+
+再执行叉叉行如下
+
+虽然说i的n和p依然指向链表内的元素，但是无论通过next还是previous方向遍历都不会遍历到它了。
+也就是它不再被任何链表内的元素引用，所以它已经和链表没有关系了。
+整理一下如下
 
 
 LinkedList是List接口的一种实现，数据结构基于双向链表。

@@ -11,6 +11,15 @@ logcat -v time >log.log
 adb shell am start -n com.android.settings/com.android.settings.Settings
 
 
+杀程序
+adb root
+adb remount
+ps | grep settings
+第一列会有PID
+kill PID 即可
+
+
+
 
 关键字紫 c66cad
 方法名兰 5b8ea8
