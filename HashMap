@@ -2,6 +2,33 @@
 
 
 
+
+HashMap简介
+HashMap存储数据采用了key-value形式，采用数组存储key的HashCode，来实现对数据的存储，这样每提供一个key
+就能知道它在数组中的位置，而不用像ArrayList一样去遍历。但是不同的key算出的HashCode可能相同，即发生了Hash冲突。
+它采用了链表法来解决这个冲突。
+
+数据结构
+
+```
+transient HashMapEntry<K, V>[] table;
+static class HashMapEntry<K, V> implements Entry<K, V> {
+    final K key;
+    V value;
+    final int hash;
+    HashMapEntry<K, V> next;
+
+    HashMapEntry(K key, V value, int hash, HashMapEntry<K, V> next) {
+        this.key = key;
+        this.value = value;
+        this.hash = hash;
+        this.next = next;
+    }
+}
+table是数组，而HashMapEntry则是那个链表，准确的说是单链表。
+一个典型的
+
+
 其数据组织方式是数组加链表,链表的存在是为了解决Hash冲突。
 散列的意思是不像数组一样，一个一个往后存储。它是依据数组长度对key的Hash值取余来确定地址。
 
