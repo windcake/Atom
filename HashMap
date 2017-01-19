@@ -3,12 +3,12 @@
 
 
 
-HashMap简介
+## HashMap简介
 HashMap存储数据采用了key-value形式，采用数组存储key的HashCode，来实现对数据的存储，这样每提供一个key
 就能知道它在数组中的位置，而不用像ArrayList一样去遍历。但是不同的key算出的HashCode可能相同，即发生了Hash冲突。
 它采用了链表法来解决这个冲突。
 
-数据结构
+## 数据结构
 
 ```
 transient HashMapEntry<K, V>[] table;
@@ -36,9 +36,63 @@ table是数组，而HashMapEntry则是组成链表的元素，准确的说是单
 当HashMap中当前元素个数size大于threshold的时候，就会扩容。
 
 还有一个现象，0x08处后边跟了两个元素，它是一个只有两个元素短短的单链表。
-发生冲突后，用单链表来解决。
+发生冲突后，用单链表来解决，我更倾向于叫它索引冲突，至于为什么，下文有讲解。
+
+## put方法
+
+```
+@Override public V put(K key, V value) {
+       if (key == null) {
+           return putValueForNullKey(value);
+       }
+      //  根据key算出hash值
+       int hash = Collections.secondaryHash(key);
+       HashMapEntry<K, V>[] tab = table;
+      //
+       int index = hash & (tab.length - 1);
+       for (HashMapEntry<K, V> e = tab[index]; e != null; e = e.next) {
+           if (e.hash == hash && key.equals(e.key)) {
+               preModify(e);
+               V oldValue = e.value;
+               e.value = value;
+               return oldValue;
+           }
+       }
+
+       // No entry for (non-null) key is present; create one
+       modCount++;
+       if (size++ > threshold) {
+           tab = doubleCapacity();
+           index = hash & (tab.length - 1);
+       }
+       addNewEntry(key, value, hash, index);
+       return null;
+   }
+```
+如果把map理解为“映射”，我觉得它涵盖了两个方面，一方面是key-value的映射，另一方面是key-hashcoe的映射。
+
+把key映射成int型的hash码，之后并不能直接放到table里，table的索引值范围很小，而hashCode的范围很大，
+他们互相匹配的概率是在是太小了。用整数a对整数b做取余（%）运算，结果区间是[0 - a-1),所以如果对hashCode用table的长度取余
+得到的值一定在table的索引区间内（hashCode%table.length 属于 [0 - table.length-1)），这样也就确定了Entry在table中的位置
+
+然而我们并没有看到取余运算，出现在眼前的是&运算，好我们探究一下原因。
+
+2^n转换成二进制的值是1 + n个0，减去1之后，就变成了 0 + n个1,这样通过与运算就取到了低n位。
+二进制中n位的取值范围是[0- 2^n)或者[0 - 2^n],也就相当于对2^n取余，这一下我们就明白了两个问题
+为什么table的容量必须是2的n次方，以及取余是如何变成 & 运算的。这样做是因为&的运算速度比%快很多，
 
 
+
+
+容量必须是2的幂次方是有原因的，这样就可以将取余运算变成 & 运算了
+当容量一定是2^n时，h & (length - 1) == h % length，它俩是等价不等效的，
+位运算效率非常高，实际开发中，很多的数值运算以及逻辑判断都可以转换成位运算，
+但是位运算通常是难以理解的，因为其本身就是给电脑运算的，运算的是二进制，而不是给人类运算的，
+人类运算的是十进制，这也是位运算在普遍的开发者中间不太流行的原因(门槛太高)。
+这个等式实际上可以推理出来，2^n转换成二进制就是1+n个0，
+减1之后就是0+n个1，如16 -> 10000，15 -> 01111，那根据&位运算的规则，
+都为1(真)时，才为1，那0≤运算后的结果≤15，假设h <= 15，那么运算后的结果就是h本身，h >15，
+运算后的结果就是最后三位二进制做&运算后的值，最终，就是%运算后的余数，我想，这就是容量必须为2的幂的原因。
 
 其数据组织方式是数组加链表,链表的存在是为了解决Hash冲突。
 散列的意思是不像数组一样，一个一个往后存储。它是依据数组长度对key的Hash值取余来确定地址。
