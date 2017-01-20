@@ -26,7 +26,7 @@ static class HashMapEntry<K, V> implements Entry<K, V> {
     }
 }
 key和value自不必说，hash用来存储根据key算出来的hash值。
-
+next表示 table[0]->A 如果再来一个B 那么B的next就是0位置上的数，也就是A  是
 
 table是数组，而HashMapEntry则是组成链表的元素，准确的说是单链表。
 一个典型的HashMap如下
@@ -48,17 +48,16 @@ table是数组，而HashMapEntry则是组成链表的元素，准确的说是单
       //  根据key算出hash值
        int hash = Collections.secondaryHash(key);
        HashMapEntry<K, V>[] tab = table;
-      //
        int index = hash & (tab.length - 1);
        for (HashMapEntry<K, V> e = tab[index]; e != null; e = e.next) {
            if (e.hash == hash && key.equals(e.key)) {
+            //  这个函数是留给LinkedHashMap用的
                preModify(e);
                V oldValue = e.value;
                e.value = value;
                return oldValue;
            }
        }
-
        // No entry for (non-null) key is present; create one
        modCount++;
        if (size++ > threshold) {
@@ -79,9 +78,80 @@ table是数组，而HashMapEntry则是组成链表的元素，准确的说是单
 
 2^n转换成二进制的值是1 + n个0，减去1之后，就变成了 0 + n个1,这样通过与运算就取到了低n位。
 二进制中n位的取值范围是[0- 2^n)或者[0 - 2^n],也就相当于对2^n取余，这一下我们就明白了两个问题
-为什么table的容量必须是2的n次方，以及取余是如何变成 & 运算的。这样做是因为&的运算速度比%快很多，
+为什么table的容量必须是2的n次方，以及取余是如何变成 & 运算的。只有二次方才有这个特性，
+这样做是因为&的运算速度比%快很多，
 
+然后遍历index位置的链表，虽然这个链表存在的概率不大，但这个动作必须有。
+如果key相同，就替换它的value
 
+如果table中index索引位置没有数据，那么跳出for循环。
+
+虽然说理论上来讲，这种数组+链表的方式是装不满的，发生冲突之后就插入到链表里好了。
+这样确实不影响插入速度，但是get的时候遍历一个巨长的数组就很费时间了。
+如果当前size大于阈值，那么进行扩容。
+
+否则addNewEntry
+```
+void addNewEntry(K key, V value, int hash, int index) {
+        table[index] = new HashMapEntry<K, V>(key, value, hash, table[index]);
+    }
+```
+
+图解一个addNewEntry过程
+
+```
+private HashMapEntry<K, V>[] doubleCapacity() {
+       HashMapEntry<K, V>[] oldTable = table;
+       int oldCapacity = oldTable.length;
+       if (oldCapacity == MAXIMUM_CAPACITY) {
+           return oldTable;
+       }
+       int newCapacity = oldCapacity * 2;
+       HashMapEntry<K, V>[] newTable = makeTable(newCapacity);
+       if (size == 0) {
+           return newTable;
+       }
+
+       for (int j = 0; j < oldCapacity; j++) {
+           /*
+            * Rehash the bucket using the minimum number of field writes.
+            * This is the most subtle and delicate code in the class.
+            */
+           HashMapEntry<K, V> e = oldTable[j];
+           if (e == null) {
+               continue;
+           }
+          //  oldCapacity是2^n所以最高位是1其余位是0，与运算取最高位。
+          //  110101010
+          //  000001000
+          //  000000000
+          // 那这个值应该就是 0 或者 16
+           int highBit = e.hash & oldCapacity;
+           HashMapEntry<K, V> broken = null;
+          //  highBit 1000 或者 0000
+          //  取 或 运算  然后把e放到这个位置
+          // 按理来说，这个index的算法应该是  取余  hash & (newCapacity32 - 1)
+          // 和 hash & (oldCapacity16  - 1) 差的只是
+           newTable[j | highBit] = e;
+          //  处理e位置的 链表
+           for (HashMapEntry<K, V> n = e.next; n != null; e = n, n = n.next) {
+               int nextHighBit = n.hash & oldCapacity;
+               if (nextHighBit != highBit) {
+                   if (broken == null)
+                       newTable[j | nextHighBit] = n;
+                   else
+                       broken.next = n;
+                   broken = e;
+                   highBit = nextHighBit;
+               }
+           }
+           if (broken != null)
+               broken.next = null;
+       }
+       return newTable;
+   }
+
+```
 
 
 容量必须是2的幂次方是有原因的，这样就可以将取余运算变成 & 运算了
