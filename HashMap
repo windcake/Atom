@@ -26,17 +26,51 @@ static class HashMapEntry<K, V> implements Entry<K, V> {
     }
 }
 key和value自不必说，hash用来存储根据key算出来的hash值。
-next表示 table[0]->A 如果再来一个B 那么B的next就是0位置上的数，也就是A  是
-
-table是数组，而HashMapEntry则是组成链表的元素，准确的说是单链表。
+next用来指向链表中的下一个元素。
+table是HashMapEntry类型的数组，而HashMapEntry则是组成链表的元素，准确的说是单链表。
 一个典型的HashMap如下
+
 
 数组中的空闲位置是刻意为之，控制这个空闲位置的参数叫Load Factor，
 翻译成中文有点土叫“加载因子”，加载因子*当前总容量 叫threshold，也就是阈值。
 当HashMap中当前元素个数size大于threshold的时候，就会扩容。
 
-还有一个现象，0x08处后边跟了两个元素，它是一个只有两个元素短短的单链表。
-发生冲突后，用单链表来解决，我更倾向于叫它索引冲突，至于为什么，下文有讲解。
+当table中的容量越满，那么再加入一个元素时，发生冲突的概率就越大。我们不希望发生冲突。
+理论上讲，在table装入很少的元素时就及时去扩容当然是会减少冲突，但是扩容很费时间，这样做也会导致
+table中有大量的空闲位置，也就是浪费了内存空间。所以必须在时间和空间上做一个平衡，Google给出的值是
+0.75，并直接写死不能改变。
+
+还有一个现象，0x08处后边跟了两个元素，它是一个只有两个元素短短的单链表。这是用链表法来解决Hash冲突，
+其实我更倾向于叫它索引冲突，至于为什么，下文有讲解。
+
+## 初始化
+
+```
+public HashMap(int capacity) {
+       if (capacity < 0) {
+           throw new IllegalArgumentException("Capacity: " + capacity);
+       }
+
+       if (capacity == 0) {
+           @SuppressWarnings("unchecked")
+           HashMapEntry<K, V>[] tab = (HashMapEntry<K, V>[]) EMPTY_TABLE;
+           table = tab;
+           threshold = -1; // Forces first put() to replace EMPTY_TABLE
+           return;
+       }
+
+       if (capacity < MINIMUM_CAPACITY) {
+           capacity = MINIMUM_CAPACITY;
+       } else if (capacity > MAXIMUM_CAPACITY) {
+           capacity = MAXIMUM_CAPACITY;
+       } else {
+           capacity = Collections.roundUpToPowerOfTwo(capacity);
+       }
+       makeTable(capacity);
+   }
+```
+在指定容量的构造函数中，除了保证容量的范围，还规范了capacity容量必须是是2^n，
+比如输入的是6，那么会被规范成8,如果是10，那么就被规范成16.这是为什么以及有什么好处请继续阅读。
 
 ## put方法
 

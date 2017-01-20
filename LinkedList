@@ -7,7 +7,7 @@ LinkedList是List接口的一种实现，底层数据结构基于双向链表。
 可能是因为以上特点，在代码的注释中才出现了这样饶有意味的嘱托。
 
 ```
-的This class is primarily useful if you need queue-like behavior. It may also be useful as a list if you expect your lists to contain zero or one element, but still require the
+This class is primarily useful if you need queue-like behavior. It may also be useful as a list if you expect your lists to contain zero or one element, but still require the
   ability to scale to slightly larger numbers of elements. In general, though, you should
   probably use ArrayList if you don't need the queue-like behavior.
 

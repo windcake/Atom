@@ -1,5 +1,67 @@
 
 
+## LinkedHashMap简介
+LinkedHashMap继承自HashMap
+
+## 数据结构
+
+```
+static class LinkedEntry<K, V> extends HashMapEntry<K, V> {
+       LinkedEntry<K, V> nxt;
+       LinkedEntry<K, V> prv;
+       /** Create the header entry */
+       LinkedEntry() {
+           super(null, null, 0, null);
+           nxt = prv = this;
+       }
+       /** Create a normal entry */
+       LinkedEntry(K key, V value, int hash, HashMapEntry<K, V> next,
+                   LinkedEntry<K, V> nxt, LinkedEntry<K, V> prv) {
+           super(key, value, hash, next);
+           this.nxt = nxt;
+           this.prv = prv;
+       }
+   }
+
+```
+LinkedEntry继承自HashMapEntry，并添加了nxt和prv两个属性，就像LinkedList它基于这两个属性
+变成双向链表的基本元素实现双向链表。
+
+
+## put方法
+
+LinkedHashMap并没有重写HashMap的put方法，而只是重写了其中最后的addNewEntry方法
+
+header是空的
+
+```
+void addNewEntry(K key, V value, int hash, int index) {
+        LinkedEntry<K, V> header = this.header;
+
+        // Remove eldest entry if instructed to do so.
+        LinkedEntry<K, V> eldest = header.nxt;
+        // removeEldestEntry直接返回了false所以if条件不会成立
+        if (eldest != header && removeEldestEntry(eldest)) {
+            remove(eldest.key);
+        }
+
+        // Create new entry, link it on to list, and put it into table
+        LinkedEntry<K, V> oldTail = header.prv;
+        LinkedEntry<K, V> newTail = new LinkedEntry<K,V>(
+                key, value, hash, table[index], header, oldTail);
+        table[index] = oldTail.nxt = header.prv = newTail;
+    }
+```
+
+
+
+
+
+
+
+
+
+
 内部是基于双向循环链表，也就是数组+双向链表
 如果有三个参数的构造器的第三个参数为true,那么其内部顺序就是访问顺序。
 put和get都会影响这个顺序

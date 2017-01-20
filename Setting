@@ -1,4 +1,8 @@
 
 
 setListAdapter
-可以设置header list的边距和divider样式
+可以设置header list的边距和divider样式、
+
+有一个 header_textcolor 的dwrable 可以更改header的颜色
+
+layout里的 preference_header_item.xml可以配置header_list的item属性
