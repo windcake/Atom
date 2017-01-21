@@ -1,11 +1,14 @@
 
 
 ## LinkedHashMap简介
-LinkedHashMap继承自HashMap
+LinkedHashMap继承自HashMap，底层仍然是数组加链表，除了发生冲突后的单链表，它还维护了一个
+链接所有元素的双链表，这样就能记录元素的插入或者访问顺序了。所以LinkedHashMap可以做到有序迭代
+也可以作为LRU算法的基石。
 
 ## 数据结构
 
 ```
+LinkedEntry<K, V> header;
 static class LinkedEntry<K, V> extends HashMapEntry<K, V> {
        LinkedEntry<K, V> nxt;
        LinkedEntry<K, V> prv;
@@ -24,15 +27,20 @@ static class LinkedEntry<K, V> extends HashMapEntry<K, V> {
    }
 
 ```
-LinkedEntry继承自HashMapEntry，并添加了nxt和prv两个属性，就像LinkedList它基于这两个属性
-变成双向链表的基本元素实现双向链表。
+LinkedEntry继承自HashMapEntry
+next属性仍然组织发生冲突后的单链表。
+nxt和prv两个属性组织一个所有元素的双链表。这样就能记录插入顺序或者访问顺序。
+header是双向循环链表的起点，和HashMap中的entryForNullKey一样，它游离于table之外。
+LinkedHashMap其实存储了两套逻辑，一套是原封不动的HashMap的逻辑。
+另一套是一个双向链表的逻辑。
+如果按逻辑划分，图图图。
 
 
 ## put方法
 
-LinkedHashMap并没有重写HashMap的put方法，而只是重写了其中最后的addNewEntry方法
+LinkedHashMap并没有重写HashMap的put方法，而只是重写了其中最后的addNewEntry方法。
+因为除了组织双向链表的逻辑，其他地方都和HashMap一样。
 
-header是空的
 
 ```
 void addNewEntry(K key, V value, int hash, int index) {
@@ -40,7 +48,7 @@ void addNewEntry(K key, V value, int hash, int index) {
 
         // Remove eldest entry if instructed to do so.
         LinkedEntry<K, V> eldest = header.nxt;
-        // removeEldestEntry直接返回了false所以if条件不会成立
+        // 默认的removeEldestEntry直接返回了false
         if (eldest != header && removeEldestEntry(eldest)) {
             remove(eldest.key);
         }
@@ -52,6 +60,35 @@ void addNewEntry(K key, V value, int hash, int index) {
         table[index] = oldTail.nxt = header.prv = newTail;
     }
 ```
+第叉叉行，无非也就是一个双向链表的插入方法。如果这个过程不熟悉，去看一LinkedList里的add方法就豁然开朗了。
+
+## makeTail方法
+LinkedHashMap的默认顺序是插入顺序，如果要实现访问顺序，那么需要将全局的accessOrder属性置为true。
+当然LinkedHashMap提供了带accessOrder参数的构造函数。访问顺序是在调用get等方法的时候内部调用了makeTail方法，
+非常直观，也就是把要访问的Entry放到尾部去。
+
+```
+private void makeTail(LinkedEntry<K, V> e) {
+       // 把e从链表里拿出来
+       e.prv.nxt = e.nxt;
+       e.nxt.prv = e.prv;
+
+       // 把e链接在尾部
+       LinkedEntry<K, V> header = this.header;
+       LinkedEntry<K, V> oldTail = header.prv;
+       e.nxt = header;
+       e.prv = oldTail;
+       oldTail.nxt = header.prv = e;
+       modCount++;
+   }
+```
+makeTail方法分两步实现，第一是把元素取出来，第二是插入到尾部。虽然这样写非常像一段台词，
+但实际情况就是这样
+关于双向链表的删除和插入操作，请看。
+
+
+
+
 
 
 
