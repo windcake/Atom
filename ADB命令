@@ -18,6 +18,9 @@ ps | grep settings
 第一列会有PID
 kill PID 即可
 
+查看Activity信息
+adb shell dumpsys activity
+
 
 
 
