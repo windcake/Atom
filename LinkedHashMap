@@ -84,11 +84,15 @@ private void makeTail(LinkedEntry<K, V> e) {
 ```
 makeTail方法分两步实现，第一是把元素取出来，第二是插入到尾部。虽然这样写非常像一段台词，
 但实际情况就是这样
+
+get方法每次都调用，put方法中如果key相同会替换掉value，在替换之前会调用preModify方法，
+preModify在LinkedHashMap中的实现是调用这个方法
+
 关于双向链表的删除和插入操作，请看。
 
 
 
-
+## LRU
 
 
 
