@@ -1,0 +1,14 @@
+
+
+IBinder接口
+
+Android框架的IPC沟通，依赖单一的IBinder接口
+此时Client端调用IBinder接口的transact()函数，
+透过IPC机制而调用到远方（Remote）的onTransact()函数
+
+transant函数
+
+Parcel data参数 打包要传过去的数据
+Parcel reply参数
+
+BinderProxy放在Client进程里，担任Service端的代理。

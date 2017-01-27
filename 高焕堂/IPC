@@ -1,12 +1,18 @@
 
+IPC Inter-Process Communication
+
+近程通信：同一个进程
+远程通信：不同进程
 
 1. 启动某个APP时Zygote会Fork一个新的Process，然后将这个APP加载到这个Process
 
 2. 在Android的进程里，有一个虚拟机对象，可以执行Java代码。
 
-3. UI线程有一个Looper和一个MQ，Looper一直loop。UI的点击等事件也会进入looper。
+3. UI线程（主线程）有一个Looper和一个MQ，Looper一直loop。UI的点击等事件也会进入looper。
 
 4. 不同进程的地址空间是独立的
+
+
 
 myActivity调用startService时，AMS就调用Service.onStart，然后执行重写的onStart
 里的代码，比如此代码是 mb = new myBinder(),这个构造方法会调用父类的构造方法，转而调用JNI本地

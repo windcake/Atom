@@ -1,9 +1,8 @@
 
 
+Manifest文件中android：process=“”指定新的线程，两个进程，会有两个VM对象
 
 
-
-android：process=“”指定新的线程，两个进程，会有两个VM对象
 
 IBinder接口的定义
 

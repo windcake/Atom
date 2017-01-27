@@ -1,0 +1,26 @@
+
+
+Activity.startActivityForResult
+内部调用了
+mInstrumentation.execStartActivity
+内部调用了
+ActivityManagerNative.getDefault().startActivity()
+ActivityManagerNative.getDefault()返回类型是IActivityManager，它是一个接口
+ActivityManagerProxy是IActivityManager的实现类。在ActivityManagerNative内部实现
+内部类里有startActivity方法
+mRemote.transact(START_ACTIVITY_TRANSACTION, data, reply, 0);
+向ActivityManagerService发送进程间通信请求
+
+然后这个请求被ActivityManagerService处理，也是startActivity方法
+内部调用mStackSupervisor.startActivityMayWait
+
+在这个方法里解析Intent信息，存在ActivityInfo中
+这个方法内部调用startActivityLocked
+
+然后又内部调用startActivityUncheckedLocked
+
+
+
+
+
+ActivityRecord 描述一个已经启动的Activity

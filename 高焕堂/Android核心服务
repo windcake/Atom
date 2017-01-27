@@ -1,0 +1,11 @@
+
+
+ServiceManager
+当系统启动时，就会登记到Binder Driver里
+后续会有更多核心服务调用SM的addService()函数去登录到BD里
+它自己跑在自己的进程里，所以必须提供Bider接口，才能被其他进程访问。
+
+这样BD里就有各种各样的服务
+
+ActivityManagerService
+APP里的服务都由AMS来管理
