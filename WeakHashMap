@@ -1,0 +1,87 @@
+
+
+# WeakHashMap简介
+不同于HashMap的是，WeakHashMap的key是弱引用，当key是弱可达的时候，在GC时这条数据就被移除了。
+
+# WeakHashMap的数据结构
+WeakHashMap的数据结构基本同于HashMap的数据结构，也是由数组和单链表组成。如果我用到基本一词，说明他们两个还是有不同之处的，这个不同之处是
+因为WeakHashMap的key是弱键。
+
+```
+ private final ReferenceQueue<K> referenceQueue
+private static final class Entry<K, V> extends WeakReference<K> implements Map.Entry<K, V> {
+        final int hash;
+        boolean isNull;
+        V value;
+        Entry<K, V> next;
+        interface Type<R, K, V> {
+            R get(Map.Entry<K, V> entry);
+        }
+        Entry(K key, V object, ReferenceQueue<K> queue) {
+            super(key, queue);
+            isNull = key == null;
+            hash = isNull ? 0 : Collections.secondaryHash(key);
+            value = object;
+        }
+        public K getKey() {
+            return super.get();
+        }
+        public V getValue() {
+            return value;
+        }
+        public V setValue(V object) {
+            V result = value;
+            value = object;
+            retu想想 rn result;
+        }
+```
+如上所示，Entry继承自WeakReference
+在Entry的构造方法中，以key和queue为参数调用了父类WeakReference的构造方法，
+这个构造方法将key个queue关联起来，当key被GC回收之后，他就会被放到queue里，然后通过queue的
+poll方法取出来做进一步处理。
+# put方法
+```
+public V put(K key, V value) {
+        poll();
+        int index = 0;
+        Entry<K, V> entry;
+        if (key != null) {
+            index = (Collections.secondaryHash(key) & 0x7FFFFFFF) % elementData.length;
+            entry = elementData[index];
+            while (entry != null && !key.equals(entry.get())) {
+                entry = entry.next;
+            }
+        } else {
+            entry = elementData[0];
+            while (entry != null && !entry.isNull) {
+                entry = entry.next;
+            }
+        }
+        if (entry == null) {
+            modCount++;
+            if (++elementCount > threshold) {
+                rehash();
+                index = key == null ? 0 : (Collections.secondaryHash(key) & 0x7FFFFFFF)
+                        % elementData.length;
+            }
+            entry = new Entry<K, V>(key, value, referenceQueue);
+            entry.next = elementData[index];
+            elementData[index] = entry;
+            return null;
+        }
+        V result = entry.value;
+        entry.value = value;
+        return result;
+    }
+
+```
+# poll方法
+```
+void poll() {
+        Entry<K, V> toRemove;
+        while ((toRemove = (Entry<K, V>) referenceQueue.poll()) != null) {
+            removeEntry(toRemove);
+        }
+    }
+```
+poll出来的是WeakReference,然后把它强转成Entry类型。Entry是WeakReference的子类，所以强转并没有问题。
