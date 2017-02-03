@@ -1,14 +1,16 @@
 
 
-# WeakHashMap简介
+## WeakHashMap简介
 不同于HashMap的是，WeakHashMap的key是弱引用，当key是弱可达的时候，在GC时这条数据就被移除了。
+弱的key被移除之后，它就会被VM放到ReferenceQueue里,我们就可以通过Queue的poll方法把key拿出来，
+并找到key对应的Entry,然后把这个Entry从Map中移除掉，从而真正达到清除内存的目的。
 
-# WeakHashMap的数据结构
-WeakHashMap的数据结构基本同于HashMap的数据结构，也是由数组和单链表组成。如果我用到基本一词，说明他们两个还是有不同之处的，这个不同之处是
-因为WeakHashMap的key是弱键。
+## WeakHashMap的数据结构
+WeakHashMap的数据结构基本同于HashMap的数据结构，也是由数组和单链表组成。如果用到基本一词，
+说明他们两个还是有不同之处的，这个不同是他们链表的基本结构有别。也就是WeakHashMap的key是弱引用。
 
 ```
- private final ReferenceQueue<K> referenceQueue
+private final ReferenceQueue<K> referenceQueue
 private static final class Entry<K, V> extends WeakReference<K> implements Map.Entry<K, V> {
         final int hash;
         boolean isNull;
@@ -39,7 +41,7 @@ private static final class Entry<K, V> extends WeakReference<K> implements Map.E
 在Entry的构造方法中，以key和queue为参数调用了父类WeakReference的构造方法，
 这个构造方法将key个queue关联起来，当key被GC回收之后，他就会被放到queue里，然后通过queue的
 poll方法取出来做进一步处理。
-# put方法
+## put方法
 ```
 public V put(K key, V value) {
         poll();
@@ -75,7 +77,12 @@ public V put(K key, V value) {
     }
 
 ```
-# poll方法
+put方法的套路基本和HashMap的put方法相同，但是在刚进入该方法时候调用了poll,它的作用是移除已经被
+VM清除的key对应的Entry。这一点需要注意，在使用WeakHashMap的时候，尽管弱引用key在弱可达状态会迅速被本次的GC
+回收，但是只有在Map内部调用poll方法，它的Entry以及Entry中的value才会被清除，使用WeakHashMap的用意是减小内存压力，
+比如BitMap等等value是内存占用的大头，所以poll方法的调用才是清理内存的关键体现。
+
+## poll方法
 ```
 void poll() {
         Entry<K, V> toRemove;
@@ -85,3 +92,6 @@ void poll() {
     }
 ```
 poll出来的是WeakReference,然后把它强转成Entry类型。Entry是WeakReference的子类，所以强转并没有问题。
+然后调用removeEntry方法将其移除。poll方法会在进入get、put、contains等绝大部分方法之初被调用。
+
+通过Entry结构理解了WeakHashMap为什么Weak,通过ReferenceQueue和poll方法理解了如何清除被回收的数据，那么WeakHashMap的精髓我们就掌握了。
