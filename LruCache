@@ -9,18 +9,22 @@
 // 拿到当前的最大内存
 long maxMemory = Runtime.getRuntime().maxMemory();
 int cacheSize = (int) (maxMemory / 8);
+// 将LruCache的缓存容量设置为cacheSize，并重写sizeOf方法。
 lruCache = new LruCache<String, Bitmap>(cacheSize) {
   @Override
   protected int sizeOf(String key, Bitmap value) {
     return value.getByteCount();
   }
 };
-
+// put一条数据
 lruCache.put(key, bitmap);
+// get一条数据
 lruCache.get(key);
+// remove一条数据
 lruCache.remove(key);
 
 ```
+sizeOf方法
 
 ### 数据结构
 
@@ -33,6 +37,10 @@ public LruCache(int maxSize) {
        this.map = new LinkedHashMap<K, V>(0, 0.75f, true);
    }
 ```
+可以看到，除了初始化maxSize，还初始化了一个全局的LinkedHashMap,当第三个参数设为true时，map被设置为
+访问顺序，也就是每操作一次map的某个Entry，它就会被放到双向链表的队尾。也就是说LRU算法的任务，完全交给了LinkedHashMap。
+
+
 ### put方法
 
 ```
@@ -61,6 +69,10 @@ public final V put(K key, V value) {
        return previous;
    }
 ```
+数据通过key-value的形式被put到了map里，在put之前通过sizeOf方法计算value的size，并累加到全局变量
+size里，它用来记录当前缓存的数据大小。然后调用了trimToSize方法，这个方法用以保证缓存大小不会超过
+maxSize。
+
 ## trimToSize方法
 ```
 public void trimToSize(int maxSize) {
@@ -89,3 +101,11 @@ public void trimToSize(int maxSize) {
        }
    }
 ```
+一进来就是一个死循环，只有当前缓存容量小于maxSize的时候才break。
+否则就迭代删除
+
+LinkedHashMap
+
+综上
+LruCache自己主要是实现maxSize的判断，以及通过trimToSize对缓存的裁剪。其他存储、提取数据的方法以及LRU的算法
+都是借助LinkedHashMap来实现的。
