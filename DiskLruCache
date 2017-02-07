@@ -1,151 +1,110 @@
 
+## 简介
+上篇文章介绍了LRUCache它的思想是把一部分常用的对象存在内存里，以便下次使用的时候快速提取。
+但是内存容量也就三G两G的，早期的或者低端一点的也就几百M，能分给自己的APP用来缓存数据的空间实在不多。
+但是别忘了，我们还有Disk这个后花园。磁盘缓存的速度虽然不然不及内存缓存，但是容量很大，用时间换空间
+这种事我们可不是第一次做。
 
-
-LinkedHashMap<String, Entry> lruEntries;
-
-## Journal文件是什么
-LruCache的文件是在内存里的，所以它的泛型是key和value, 比如常见的<String,Bitmap>
-但是磁盘缓存的文件是存在磁盘里，不能直接引用。那怎么去磁盘里找这个文件呢。
-所以我们必须有一个地方去记录磁盘里都有哪些文件以及文件名。
-journal文件就是干这个用的
-于是问题就可以被这样解决，先把这些文件名加载到内存里，然后就可以去索引了。
-当执行get方法的时候，提供一个文件名（key），如果找到了，再用流读到内存里使用。
-
-## 最近最少算法的实现
-
-## size的计算和trimToSize方法
-maxSize指明了单位是bytes
- maxSize the maximum number of bytes this cache should use to store
- 每个缓存实体
- valueCount the number of values per cache entry.
-Entry的构造方法里初始化了这个lengths数组，用以记录每个value的长度
-```
-private Entry(String key) {
-     this.key = key;
-     this.lengths = new long[valueCount];
-   }
-```
-在completeEdit里赋值了entry的长度
-long newLength = clean.length();
-entry.lengths[i] = newLength;
-
-
-
-## open方法
-构造方法人用 private修饰的，所以提供的open方法。
-
-open方法调用了readJournal方法
-readJournal方法内部又调用了
+## 简单使用
 
 ```
-private void readJournalLine(String line) throws IOException {
-   int firstSpace = line.indexOf(' ');
-   if (firstSpace == -1) {
-     throw new IOException("unexpected journal line: " + line);
-   }
+DiskLruCache mDiskLruCache = DiskLruCache.open(directory, appVersion, valueCount, maxSize);
+String key = generateKey(url);
+DiskLruCache.Editor editor = mDiskLruCache.edit(key);
+OuputStream os = editor.newOutputStream(0);
 
-   int keyBegin = firstSpace + 1;
-   int secondSpace = line.indexOf(' ', keyBegin);
-   final String key;
-   if (secondSpace == -1) {
-     key = line.substring(keyBegin);
-     if (firstSpace == REMOVE.length() && line.startsWith(REMOVE)) {
-       lruEntries.remove(key);
-       return;
-     }
-   } else {
+DiskLruCache.Snapshot snapShot = mDiskLruCache.get(key);
+if (snapShot != null) {
+    InputStream is = snapShot.getInputStream(0);
+}
 
-//  读key,也就是文件名
-     key = line.substring(keyBegin, secondSpace);
-   }
-
-//  把文件名读进内存
-   Entry entry = lruEntries.get(key);
-   if (entry == null) {
-     entry = new Entry(key);
-     lruEntries.put(key, entry);
-   }
-
-   if (secondSpace != -1 && firstSpace == CLEAN.length() && line.startsWith(CLEAN)) {
-     String[] parts = line.substring(secondSpace + 1).split(" ");
-     entry.readable = true;
-     entry.currentEditor = null;
-     entry.setLengths(parts);
-   } else if (secondSpace == -1 && firstSpace == DIRTY.length() && line.startsWith(DIRTY)) {
-     entry.currentEditor = new Editor(entry);
-   } else if (secondSpace == -1 && firstSpace == READ.length() && line.startsWith(READ)) {
-     // This work was already done by calling lruEntries.get().
-   } else {
-     throw new IOException("unexpected journal line: " + line);
-   }
- }
-
-## Journal文件是什么 介绍Journal文件
 
 ```
-这个方法会把日志文件里的文件索引都读进HashMap
-这样open方法就结束了。
 
+## Journal文件
 
-## 写入过程
-通过edit方法返回一个Editor的
-然后调用Editor的newOutputStream返回一个输出流
-输出流写入完毕之后，调用Editor的commit方法
-commit方法内部调用completeEdit方法
+## open
 
 ```
-private synchronized void completeEdit(Editor editor, boolean success) throws IOException {
-   Entry entry = editor.entry;
-   if (entry.currentEditor != editor) {
-     throw new IllegalStateException();
-   }
+public static DiskLruCache open(File directory, int appVersion, int valueCount, long maxSize)
+      throws IOException {
 
-   // If this edit is creating the entry for the first time, every index must have a value.
-   if (success && !entry.readable) {
-     for (int i = 0; i < valueCount; i++) {
-       if (!editor.written[i]) {
-         editor.abort();
-         throw new IllegalStateException("Newly created entry didn't create value for index " + i);
-       }
-       if (!entry.getDirtyFile(i).exists()) {
-         editor.abort();
-         return;
-       }
-     }
-   }
+    // If a bkp file exists, use it instead.
+    File backupFile = new File(directory, JOURNAL_FILE_BACKUP);
+    if (backupFile.exists()) {
+      File journalFile = new File(directory, JOURNAL_FILE);
+      // If journal file also exists just delete backup file.
+      if (journalFile.exists()) {
+        backupFile.delete();
+      } else {
+        renameTo(backupFile, journalFile, false);
+      }
+    }
+    // Prefer to pick up where we left off.
+    DiskLruCache cache = new DiskLruCache(directory, appVersion, valueCount, maxSize);
+    if (cache.journalFile.exists()) {
+      try {
+        cache.readJournal();
+        cache.processJournal();
+        return cache;
+      } catch (IOException journalIsCorrupt) {
 
-   for (int i = 0; i < valueCount; i++) {
-     File dirty = entry.getDirtyFile(i);
-     if (success) {
-       if (dirty.exists()) {
-         File clean = entry.getCleanFile(i);
-         dirty.renameTo(clean);
-         long oldLength = entry.lengths[i];
-         long newLength = clean.length();
-         entry.lengths[i] = newLength;
-         size = size - oldLength + newLength;
-       }
-     } else {
-       deleteIfExists(dirty);
-     }
-   }
+        cache.delete();
 
-   redundantOpCount++;
-   entry.currentEditor = null;
-   if (entry.readable | success) {
-     entry.readable = true;
-     journalWriter.write(CLEAN + ' ' + entry.key + entry.getLengths() + '\n');
-     if (success) {
-       entry.sequenceNumber = nextSequenceNumber++;
-     }
-   } else {
-     lruEntries.remove(entry.key);
-     journalWriter.write(REMOVE + ' ' + entry.key + '\n');
-   }
-   journalWriter.flush();
+      }
+    }
 
-   if (size > maxSize || journalRebuildRequired()) {
-     executorService.submit(cleanupCallable);
-   }
- }
+    // Create a new empty cache.
+    directory.mkdirs();
+    cache = new DiskLruCache(directory, appVersion, valueCount, maxSize);
+    cache.rebuildJournal();
+    return cache;
+  }
+```
+如果journal的备份文件已经存在，就去new一个journal文件，如果journal文件也已经存在，那么就删除备份，
+如果journal文件不存在，那么就将备份文件变成journal文件，也就是重命名。
+
+如果journal的备份文件不存在，那么说明该路径没有任何缓存，那么就创建一个空的cache,并调用rebuildJournal方法
+
+### ebuildJournal方法
+```
+private synchronized void rebuildJournal() throws IOException {
+    if (journalWriter != null) {
+      journalWriter.close();
+    }
+
+    Writer writer = new BufferedWriter(
+        new OutputStreamWriter(new FileOutputStream(journalFileTmp), Util.US_ASCII));
+    try {
+      writer.write(MAGIC);
+      writer.write("\n");
+      writer.write(VERSION_1);
+      writer.write("\n");
+      writer.write(Integer.toString(appVersion));
+      writer.write("\n");
+      writer.write(Integer.toString(valueCount));
+      writer.write("\n");
+      writer.write("\n");
+
+      for (Entry entry : lruEntries.values()) {
+        if (entry.currentEditor != null) {
+          writer.write(DIRTY + ' ' + entry.key + '\n');
+        } else {
+          writer.write(CLEAN + ' ' + entry.key + entry.getLengths() + '\n');
+        }
+      }
+    } finally {
+      writer.close();
+    }
+
+    if (journalFile.exists()) {
+      renameTo(journalFile, journalFileBackup, true);
+    }
+    renameTo(journalFileTmp, journalFile, false);
+    journalFileBackup.delete();
+
+    journalWriter = new BufferedWriter(
+        new OutputStreamWriter(new FileOutputStream(journalFile, true), Util.US_ASCII));
+  }
+
 ```

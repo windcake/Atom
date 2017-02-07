@@ -88,7 +88,7 @@ public void trimToSize(int maxSize) {
                if (size <= maxSize || map.isEmpty()) {
                    break;
                }
-
+   
                Map.Entry<K, V> toEvict = map.entrySet().iterator().next();
                key = toEvict.getKey();
                value = toEvict.getValue();
