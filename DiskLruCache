@@ -23,6 +23,12 @@ if (snapShot != null) {
 
 ## Journal文件
 
+## 数据结构
+lruEntries里存储了key和Entry，Entry里存储了关于文件的信息。
+key和文件的状态存储在日志文件里，和日志文件同级的的真正缓存的文件。
+这样lruEntries放在内存里，存储所有关于缓存的信息，同LRUCache一样，它也是LinkHashMap
+所以也实现了LRU算法，在达到内存上限之后，删除掉近期最少使用的文件。
+
 ## open
 
 ```
@@ -66,7 +72,7 @@ public static DiskLruCache open(File directory, int appVersion, int valueCount, 
 
 如果journal的备份文件不存在，那么说明该路径没有任何缓存，那么就创建一个空的cache,并调用rebuildJournal方法
 
-### ebuildJournal方法
+### rebuildJournal方法
 ```
 private synchronized void rebuildJournal() throws IOException {
     if (journalWriter != null) {
@@ -108,3 +114,101 @@ private synchronized void rebuildJournal() throws IOException {
   }
 
 ```
+创建journalFileTmp文件，并将其前5行写好。遍历lruEntries并将Entry当前的状态写入日志文件。
+如果journalFile已经存在，那么就做个备份。
+并将刚才的临时日志文件journalFileTmp重命名为日志文件journalFile。
+然后删除备份日志文件。
+为什么这么做呢？
+
+## readJournal
+如果journalFile存在，那么首先调用了readJournal方法
+```
+
+private void readJournal() throws IOException {
+    StrictLineReader reader = new StrictLineReader(new FileInputStream(journalFile), Util.US_ASCII);
+    try {
+      String magic = reader.readLine();
+      String version = reader.readLine();
+      String appVersionString = reader.readLine();
+      String valueCountString = reader.readLine();
+      String blank = reader.readLine();
+      if (!MAGIC.equals(magic)
+          || !VERSION_1.equals(version)
+          || !Integer.toString(appVersion).equals(appVersionString)
+          || !Integer.toString(valueCount).equals(valueCountString)
+          || !"".equals(blank)) {
+        throw new IOException("unexpected journal header: [" + magic + ", " + version + ", "
+            + valueCountString + ", " + blank + "]");
+      }
+
+      int lineCount = 0;
+      while (true) {
+        try {
+          readJournalLine(reader.readLine());
+          lineCount++;
+        } catch (EOFException endOfJournal) {
+          break;
+        }
+      }
+      redundantOpCount = lineCount - lruEntries.size();
+
+      // If we ended on a truncated line, rebuild the journal before appending to it.
+      if (reader.hasUnterminatedLine()) {
+        rebuildJournal();
+      } else {
+        journalWriter = new BufferedWriter(new OutputStreamWriter(
+            new FileOutputStream(journalFile, true), Util.US_ASCII));
+      }
+    } finally {
+      Util.closeQuietly(reader);
+    }
+  }
+  private void readJournalLine(String line) throws IOException {
+    int firstSpace = line.indexOf(' ');
+    if (firstSpace == -1) {
+      throw new IOException("unexpected journal line: " + line);
+    }
+
+    int keyBegin = firstSpace + 1;
+    int secondSpace = line.indexOf(' ', keyBegin);
+    final String key;
+    if (secondSpace == -1) {
+      key = line.substring(keyBegin);
+      if (firstSpace == REMOVE.length() && line.startsWith(REMOVE)) {
+        lruEntries.remove(key);
+        return;
+      }
+    } else {
+      key = line.substring(keyBegin, secondSpace);
+    }
+
+    Entry entry = lruEntries.get(key);
+    if (entry == null) {
+      entry = new Entry(key);
+      lruEntries.put(key, entry);
+    }
+
+    if (secondSpace != -1 && firstSpace == CLEAN.length() && line.startsWith(CLEAN)) {
+      String[] parts = line.substring(secondSpace + 1).split(" ");
+      entry.readable = true;
+      entry.currentEditor = null;
+      entry.setLengths(parts);
+    } else if (secondSpace == -1 && firstSpace == DIRTY.length() && line.startsWith(DIRTY)) {
+      entry.currentEditor = new Editor(entry);
+    } else if (secondSpace == -1 && firstSpace == READ.length() && line.startsWith(READ)) {
+      // This work was already done by calling lruEntries.get().
+    } else {
+      throw new IOException("unexpected journal line: " + line);
+    }
+  }
+
+```
+进来之后首先校验文件格式对不对，也就是验证是不是标准的日志文件。
+然后调用了readJournalLine方法，我们分析过日志文件它确实是每个记录单独一行。
+首先从日志文件中把key读出来。
+如果当前key对应的记录是REMOVE,那么就从lruEntries中remove掉。
+如果lruEntries中还没有此条记录，那么就new一个Entry放进去。
+如果是CLEAN状态，说明没有对象在操作这条记录。
+如果是DIRTY状态，说明正在被编辑，那么给它赋值一个编辑器。
+如果是READ状态，那么什么都不操作。
+这样lruEntries就整体把控了当前缓存的情况。
