@@ -1,0 +1,157 @@
+
+
+
+
+/frameworks/base/core/java/android/app/Activity.java
+/frameworks/base/core/java/android/content/Context.java
+/frameworks/base/core/java/android/content/ContextWrapper.java
+/frameworks/base/core/java/android/app/ContextImpl.java
+frameworks/base/core/java/android/app/ActivityManager.java
+/frameworks/base/core/java/android/app/ActivityManagerNative.java
+/frameworks/base/core/java/android/os/ServiceManager.java
+frameworks/base/core/java/android/os/ServiceManagerNative.java
+
+/frameworks/base/core/java/com/android/internal/os/BinderInternal.java
+
+
+Activity继承了ContextThemeWrapper类，而ContextThemeWrapper类又继承了ContextWrapper类
+前两个都没有实现startService方法，ContextWrapper类下的startService方法如下
+```
+@Override
+   public ComponentName startService(Intent service) {
+        return mBase.startService(service);
+    }
+```
+mBase是一个ContextImpl实例，他们两个都继承自Context类。
+
+
+ContextImpl的startService方法内部调用该类下的startServiceCommon方法，如下。
+```
+private ComponentName startServiceCommon(Intent service, UserHandle user) {
+        try {
+            validateServiceIntent(service);
+            service.prepareToLeaveProcess();
+            ComponentName cn = ActivityManagerNative.getDefault().startService(
+                mMainThread.getApplicationThread(), service, service.resolveTypeIfNeeded(
+                            getContentResolver()), getOpPackageName(), user.getIdentifier());
+            return cn;
+        } catch (RemoteException e) {
+            throw new RuntimeException("Failure from system", e);
+        }
+    }
+```
+ActivityManagerNative继承了Binder，getDefault方法如下
+```
+static public IActivityManager getDefault() {
+        return gDefault.get();
+    }
+```
+```
+
+protected IActivityManager create() {
+            IBinder b = ServiceManager.getService("activity");
+
+            IActivityManager am = asInterface(b);
+
+            return am;
+        }
+```
+```
+static public IActivityManager asInterface(IBinder obj) {
+        if (obj == null) {
+            return null;
+        }
+        IActivityManager in =
+            (IActivityManager)obj.queryLocalInterface(descriptor);
+        if (in != null) {
+            return in;
+        }
+
+        return new ActivityManagerProxy(obj);
+    }
+```
+
+经过以上运作 mRemote 被赋值成了ServiceManager.getService("activity")返回的值。
+
+最终get()返回了一个ActivityManagerProxy对象，它是ActivityManagerNative的内部类，startService
+方法如下
+```
+public ComponentName startService(IApplicationThread caller, Intent service,
+            String resolvedType, String callingPackage, int userId) throws RemoteException
+    {
+        Parcel data = Parcel.obtain();
+        Parcel reply = Parcel.obtain();
+        data.writeInterfaceToken(IActivityManager.descriptor);
+        data.writeStrongBinder(caller != null ? caller.asBinder() : null);
+        // 讲Intentn内容写入data里
+        service.writeToParcel(data, 0);
+        data.writeString(resolvedType);
+        data.writeString(callingPackage);
+        data.writeInt(userId);
+        mRemote.transact(START_SERVICE_TRANSACTION, data, reply, 0);
+        reply.readException();
+        ComponentName res = ComponentName.readFromParcel(reply);
+        data.recycle();
+        reply.recycle();
+        return res;
+    }
+```
+把数据封装好之后，调用了mRemote的transact方法，那么mRemote是什么呢？
+
+我们知道它就是ServiceManager.getService("activity")，好看一下这个方法
+```
+public static IBinder getService(String name) {
+        try {
+            IBinder service = sCache.get(name);
+            if (service != null) {
+                return service;
+            } else {
+                return getIServiceManager().getService(name);
+            }
+        } catch (RemoteException e) {
+            Log.e(TAG, "error in getService", e);
+        }
+        return null;
+    }
+```
+
+```
+private static IServiceManager getIServiceManager() {
+        if (sServiceManager != null) {
+            return sServiceManager;
+        }
+        // Find the service manager
+        sServiceManager = ServiceManagerNative.asInterface(BinderInternal.getContextObject());
+        return sServiceManager;
+    }
+```
+好看一下ServiceManagerNative的asInterface方法都做了什么
+
+```
+static public IServiceManager asInterface(IBinder obj)
+    {
+        if (obj == null) {
+            return null;
+        }
+        IServiceManager in =
+            (IServiceManager)obj.queryLocalInterface(descriptor);
+        if (in != null) {
+            return in;
+        }
+
+        return new ServiceManagerProxy(obj);
+    }
+```
+```
+  public ServiceManagerProxy(IBinder remote) {
+        mRemote = remote;
+    }
+``
+这样也是给mRemote赋值
+但是上边传过来的obj，也就是BinderInternal.getContextObject()是什么呢，看一下。
+
+```
+public static final native IBinder getContextObject();
+```
+是个native方法
+到这里，回顾一下，我们当前正在寻找ServiceManager.getService("activity")的返回值。

@@ -2,8 +2,7 @@
 ## 简介
 上篇文章介绍了LRUCache它的思想是把一部分常用的对象存在内存里，以便下次使用的时候快速提取。
 但是内存容量也就三G两G的，早期的或者低端一点的也就几百M，能分给自己的APP用来缓存数据的空间实在不多。
-但是别忘了，我们还有Disk这个后花园。磁盘缓存的速度虽然不然不及内存缓存，但是容量很大，用时间换空间
-这种事我们可不是第一次做。
+但是别忘了，我们还有Disk这个后花园。磁盘缓存的速度虽然不然不及内存缓存，但是容量很大，是典型的用时间换空间思想。
 
 ## 简单使用
 
@@ -18,10 +17,42 @@ if (snapShot != null) {
     InputStream is = snapShot.getInputStream(0);
 }
 
-
 ```
+valueCount 是每一个key对应的value文件有几个
 
 ## Journal文件
+Journal是一个日志文件，一个典型的Journal文件如下：
+
+libcore.io.DiskLruCache
+1
+100
+2
+
+CLEAN 3400330d1dfc7f3f7f4b8d4d803dfcf6 832 21054
+DIRTY 335c4c6028171cfddfbaae1a9c313c52
+CLEAN 335c4c6028171cfddfbaae1a9c313c52 3934 2342
+REMOVE 335c4c6028171cfddfbaae1a9c313c52
+DIRTY 1ab96a171faeeee38496d8b330771a7a
+CLEAN 1ab96a171faeeee38496d8b330771a7a 1600 234
+READ 335c4c6028171cfddfbaae1a9c313c52
+READ 3400330d1dfc7f3f7f4b8d4d803dfcf6
+
+前五行组成了日志文件的文件头
+
+第一行 固定字符串libcore.io.DiskLruCache，也就是文件的魔数。
+第二行 是DiskLruCache的版本号，源码中为常量1
+第三行 是app的版本号，自己在open方法里传入
+第四行 valueCount，每个key对应几个缓存文件
+第五行 空行
+
+接下来看起来乱乱的就是一条条操作记录了，
+每一行由状态、key、如果key对应多个缓存文件且它是CLEAN的会依次列出缓存文件的大小。
+
+DIRTY表示这个entry正在被写入，如果写入成功后边会跟一条CLEAN记录。
+如果写入失败，后边会跟一条REMOVE记录。
+CLEAN 表示缓存写好了，后边还会跟多个缓存文件的长度
+READ get方法get一次，也就是读取一次，就写一个READ
+REMOVE 删除之后写
 
 ## 数据结构
 lruEntries里存储了key和Entry，Entry里存储了关于文件的信息。
@@ -266,7 +297,7 @@ public Editor edit(String key) throws IOException {
 并在日志文件中写入DIRTY标志，标识此Entry正在被编辑。
 最后返回这个Editor
 
-然后调用了newOutputStream方法，拿到一个输出流。
+然后调用了Editor的newOutputStream方法，拿到一个输出流。
 
 ## newOutputStream
 
@@ -375,3 +406,72 @@ private synchronized void completeEdit(Editor editor, boolean success) throws IO
     }
   }
 ```
+如果成功
+把dirtyFile变成cleanFile，并重新计算size。
+然后把这个entry设置为可读，并写入一条CLEAN的操作日志。
+如果失败
+就把dirtyFile删除，然后把它从lruEntries中移除，并写入一条REMOVE的操作日志。
+这样entry文件写好了，日志也写好了，这次缓存也就做好了。
+
+
+
+## 读取
+```
+DiskLruCache.Snapshot snapShot = mDiskLruCache.get(key);
+if (snapShot != null) {
+  InputStream is = snapShot.getInputStream(0);
+}
+```
+那么首先看get方法
+
+```
+public synchronized Snapshot get(String key) throws IOException {
+    checkNotClosed();
+    validateKey(key);
+    Entry entry = lruEntries.get(key);
+    if (entry == null) {
+      return null;
+    }
+
+    if (!entry.readable) {
+      return null;
+    }
+
+
+    // Open all streams eagerly to guarantee that we see a single published
+    // snapshot. If we opened streams lazily then the streams could come
+    // from different edits.
+    InputStream[] ins = new InputStream[valueCount];
+    try {
+      for (int i = 0; i < valueCount; i++) {
+        ins[i] = new FileInputStream(entry.getCleanFile(i));
+      }
+    } catch (FileNotFoundException e) {
+      // A file must have been deleted manually!
+      for (int i = 0; i < valueCount; i++) {
+        if (ins[i] != null) {
+          Util.closeQuietly(ins[i]);
+        } else {
+          break;
+        }
+      }
+      return null;
+    }
+
+    redundantOpCount++;
+    journalWriter.append(READ + ' ' + key + '\n');
+    if (journalRebuildRequired()) {
+      executorService.submit(cleanupCallable);
+    }
+
+    return new Snapshot(key, entry.sequenceNumber, ins, entry.lengths);
+  }
+
+```
+同样是检查journalWriter有没有关闭，以及key的合法性。
+然后new出valueCount个输入流。
+向日志文件中写入一条READ日志。
+最后封装一个Snapshot返回
+
+
+159

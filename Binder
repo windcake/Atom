@@ -97,3 +97,111 @@ IPCThreadState的transact方法内部先writeTransactionData(BC_TRANSACTION, fla
 这个函数用来和驱动交互 进行读写操作
 ioctl(mProcess->mDriverFD, BINDER_WRITE_READ, &bwr)
 进入到binder
+执行这个CASE
+case BINDER_WRITE_READ:
+  ret = binder_ioctl_write_read(filp, cmd, arg, thread);
+  if (ret)
+    goto err;
+  break;
+  看一下这个函数
+  ```
+  static int binder_ioctl_write_read(struct file *filp,
+  				unsigned int cmd, unsigned long arg,
+  				struct binder_thread *thread)
+  {
+  	int ret = 0;
+  	struct binder_proc *proc = filp->private_data;
+  	unsigned int size = _IOC_SIZE(cmd);
+  	void __user *ubuf = (void __user *)arg;
+  	struct binder_write_read bwr;
+
+  	if (size != sizeof(struct binder_write_read)) {
+  		ret = -EINVAL;
+  		goto out;
+  	}
+  	if (copy_from_user(&bwr, ubuf, sizeof(bwr))) {
+  		ret = -EFAULT;
+  		goto out;
+  	}
+  	binder_debug(BINDER_DEBUG_READ_WRITE,
+  		     "%d:%d write %lld at %016llx, read %lld at %016llx\n",
+  		     proc->pid, thread->pid,
+  		     (u64)bwr.write_size, (u64)bwr.write_buffer,
+  		     (u64)bwr.read_size, (u64)bwr.read_buffer);
+
+  	if (bwr.write_size > 0) {
+  		ret = binder_thread_write(proc, thread,
+  					  bwr.write_buffer,
+  					  bwr.write_size,
+  					  &bwr.write_consumed);
+  		trace_binder_write_done(ret);
+  		if (ret < 0) {
+  			bwr.read_consumed = 0;
+  			if (copy_to_user(ubuf, &bwr, sizeof(bwr)))
+  				ret = -EFAULT;
+  			goto out;
+  		}
+  	}
+  	if (bwr.read_size > 0) {
+  		ret = binder_thread_read(proc, thread, bwr.read_buffer,
+  					 bwr.read_size,
+  					 &bwr.read_consumed,
+  					 filp->f_flags & O_NONBLOCK);
+  		trace_binder_read_done(ret);
+  		if (!list_empty(&proc->todo))
+  			wake_up_interruptible(&proc->wait);
+  		if (ret < 0) {
+  			if (copy_to_user(ubuf, &bwr, sizeof(bwr)))
+  				ret = -EFAULT;
+  			goto out;
+  		}
+  	}
+  	binder_debug(BINDER_DEBUG_READ_WRITE,
+  		     "%d:%d wrote %lld of %lld, read return %lld of %lld\n",
+  		     proc->pid, thread->pid,
+  		     (u64)bwr.write_consumed, (u64)bwr.write_size,
+  		     (u64)bwr.read_consumed, (u64)bwr.read_size);
+  	if (copy_to_user(ubuf, &bwr, sizeof(bwr))) {
+  		ret = -EFAULT;
+  		goto out;
+  	}
+  out:
+  	return ret;
+  }
+
+  ```
+调用
+copy_from_user(&bwr, ubuf, sizeof(bwr)
+把数据拷贝到bwr中来
+注意，这里已经是内核空间了，copy_from_user把用户空间的数据拷进来。
+
+```
+if (bwr.write_size > 0) {
+		ret = binder_thread_write(proc, thread,
+					  bwr.write_buffer,
+					  bwr.write_size,
+					  &bwr.write_consumed);
+		trace_binder_write_done(ret);
+		if (ret < 0) {
+			bwr.read_consumed = 0;
+			if (copy_to_user(ubuf, &bwr, sizeof(bwr)))
+				ret = -EFAULT;
+			goto out;
+		}
+	}
+```
+如果有数据需要写入，就调用binder_thread_write
+我们关注
+case BC_TRANSACTION:
+case BC_REPLY: {
+  struct binder_transaction_data tr;
+
+  if (copy_from_user(&tr, ptr, sizeof(tr)))
+    return -EFAULT;
+  ptr += sizeof(tr);
+  binder_transaction(proc, thread, &tr,
+         cmd == BC_REPLY, 0);
+  break;
+}
+copy_from_user(void *to, const void __user *from, unsigned long n)
+三个参数分别为 内核地址 用户空间地址 数据长度
