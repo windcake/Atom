@@ -1,0 +1,13 @@
+
+
+typedef int feet;
+给int型取一个新名字feet
+
+继承
+class Rectangle: public Shape, public PaintCost
+
+A *p则使用：p->play(); 左边是结构指针。
+A p 则使用：p.paly(); 左边是结构变量。
+总结：
+箭头（->）：左边必须为指针；
+点号（.）：左边必须为实体。

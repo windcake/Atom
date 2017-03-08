@@ -6,3 +6,42 @@ setListAdapter
 有一个 header_textcolor 的dwrable 可以更改header的颜色
 
 layout里的 preference_header_item.xml可以配置header_list的item属性
+
+AlertDialog位置调整
+http://blog.csdn.net/wodejiang2009/article/details/7430400
+
+
+proxy_settings.xml
+wifi_config_ui_for_setup_wizard.xml
+wifi_dialog.xml
+
+
+WifiWnabler代码是一样的
+
+WifiSettings也一样
+
+
+protected void notifyChanged() {
+        if (mListener != null) {
+            mListener.onPreferenceChange(this);
+        }
+    }
+notifyChanged调用了监听器
+
+
+### registerDependent
+private void registerDependent(Preference dependent) {
+        if (mDependents == null) {
+            mDependents = new ArrayList<Preference>();
+        }
+
+        mDependents.add(dependent);
+
+        dependent.onDependencyChanged(this, shouldDisableDependents());
+    }
+
+这个函数就是把 当前的oreference add到一个数组里mDependents
+
+
+
+Preference的布局是通过Preference的构造函数 通过 TypedArray 拿到的

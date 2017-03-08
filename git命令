@@ -17,3 +17,45 @@ git commit 提交 写好u
 git pull 先进行pull操作把远程的拉下来
 
 git push 再进行提交
+
+git status
+git init
+git add filename
+git checkout -b newbr
+git checkout brname
+git branch
+git add .
+git commit -m "xxxx"
+git commit -a -m "xxxx"
+git clean -f
+git merge br
+git reset HEAD^
+git reset --hard
+git cheackout --
+
+git revert 版本号 是拿掉某次 commit的代码
+
+
+git fetch origin master
+ git rebase remotes/origin/master
+ git revert 9b000612
+  git cherry-pick 9b00061
+ git reset HEAD^
+ git checkout -- src/com/
+
+
+
+ git clone git@192.168.18.254:repos/HSettings
+ repos/edu2017/Apps/HSettings.git
+ hht@daping
+
+
+删除了一个文件 但是还没有commit,此时后悔了，如何拿回来呢？
+git reset HEAD src/com/android/settings/VoiceInputOutputSettings.java
+
+git checkout -- src/com/android/settings/VoiceInputOutputSettings.java
+就OK了
+
+java -Xmx2014m -jar opengrok.jar -W "C:\\opengrok-0.12.1\\data\\configuration.xml" -P -S -v -s "C:\\opengrok-0.12.1\\source" -d "C:\\opengrok-0.12.1\\data"
+
+ "Remove some Unused files in the package of accounts,and modify the Settings.java file by the way"
