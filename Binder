@@ -95,4 +95,5 @@ IPCThreadState的transact方法内部先writeTransactionData(BC_TRANSACTION, fla
 
 然后调用了waiForResponse在这个函数里调用了talkWithDriver
 这个函数用来和驱动交互 进行读写操作
- ioctl(mProcess->mDriverFD, BINDER_WRITE_READ, &bwr)
+ioctl(mProcess->mDriverFD, BINDER_WRITE_READ, &bwr)
+进入到binder
