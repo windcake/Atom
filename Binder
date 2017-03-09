@@ -97,111 +97,52 @@ IPCThreadState的transact方法内部先writeTransactionData(BC_TRANSACTION, fla
 这个函数用来和驱动交互 进行读写操作
 ioctl(mProcess->mDriverFD, BINDER_WRITE_READ, &bwr)
 进入到binder
-执行这个CASE
-case BINDER_WRITE_READ:
-  ret = binder_ioctl_write_read(filp, cmd, arg, thread);
-  if (ret)
-    goto err;
-  break;
-  看一下这个函数
-  ```
-  static int binder_ioctl_write_read(struct file *filp,
-  				unsigned int cmd, unsigned long arg,
-  				struct binder_thread *thread)
-  {
-  	int ret = 0;
-  	struct binder_proc *proc = filp->private_data;
-  	unsigned int size = _IOC_SIZE(cmd);
-  	void __user *ubuf = (void __user *)arg;
-  	struct binder_write_read bwr;
 
-  	if (size != sizeof(struct binder_write_read)) {
-  		ret = -EINVAL;
-  		goto out;
-  	}
-  	if (copy_from_user(&bwr, ubuf, sizeof(bwr))) {
-  		ret = -EFAULT;
-  		goto out;
-  	}
-  	binder_debug(BINDER_DEBUG_READ_WRITE,
-  		     "%d:%d write %lld at %016llx, read %lld at %016llx\n",
-  		     proc->pid, thread->pid,
-  		     (u64)bwr.write_size, (u64)bwr.write_buffer,
-  		     (u64)bwr.read_size, (u64)bwr.read_buffer);
 
-  	if (bwr.write_size > 0) {
-  		ret = binder_thread_write(proc, thread,
-  					  bwr.write_buffer,
-  					  bwr.write_size,
-  					  &bwr.write_consumed);
-  		trace_binder_write_done(ret);
-  		if (ret < 0) {
-  			bwr.read_consumed = 0;
-  			if (copy_to_user(ubuf, &bwr, sizeof(bwr)))
-  				ret = -EFAULT;
-  			goto out;
-  		}
-  	}
-  	if (bwr.read_size > 0) {
-  		ret = binder_thread_read(proc, thread, bwr.read_buffer,
-  					 bwr.read_size,
-  					 &bwr.read_consumed,
-  					 filp->f_flags & O_NONBLOCK);
-  		trace_binder_read_done(ret);
-  		if (!list_empty(&proc->todo))
-  			wake_up_interruptible(&proc->wait);
-  		if (ret < 0) {
-  			if (copy_to_user(ubuf, &bwr, sizeof(bwr)))
-  				ret = -EFAULT;
-  			goto out;
-  		}
-  	}
-  	binder_debug(BINDER_DEBUG_READ_WRITE,
-  		     "%d:%d wrote %lld of %lld, read return %lld of %lld\n",
-  		     proc->pid, thread->pid,
-  		     (u64)bwr.write_consumed, (u64)bwr.write_size,
-  		     (u64)bwr.read_consumed, (u64)bwr.read_size);
-  	if (copy_to_user(ubuf, &bwr, sizeof(bwr))) {
-  		ret = -EFAULT;
-  		goto out;
-  	}
-  out:
-  	return ret;
-  }
+我们在另一个进程拿不到SM的实体，所以只能通过它的代理来做。
 
-  ```
-调用
-copy_from_user(&bwr, ubuf, sizeof(bwr)
-把数据拷贝到bwr中来
-注意，这里已经是内核空间了，copy_from_user把用户空间的数据拷进来。
+svclist
 
-```
-if (bwr.write_size > 0) {
-		ret = binder_thread_write(proc, thread,
-					  bwr.write_buffer,
-					  bwr.write_size,
-					  &bwr.write_consumed);
-		trace_binder_write_done(ret);
-		if (ret < 0) {
-			bwr.read_consumed = 0;
-			if (copy_to_user(ubuf, &bwr, sizeof(bwr)))
-				ret = -EFAULT;
-			goto out;
-		}
-	}
-```
-如果有数据需要写入，就调用binder_thread_write
-我们关注
-case BC_TRANSACTION:
-case BC_REPLY: {
-  struct binder_transaction_data tr;
+今晚研究 mmap是如何进行内存映射的
+然后研究copy_from_user方法
+参照gityuan博客驱动篇
+拿着白纸比划着
 
-  if (copy_from_user(&tr, ptr, sizeof(tr)))
-    return -EFAULT;
-  ptr += sizeof(tr);
-  binder_transaction(proc, thread, &tr,
-         cmd == BC_REPLY, 0);
-  break;
-}
-copy_from_user(void *to, const void __user *from, unsigned long n)
-三个参数分别为 内核地址 用户空间地址 数据长度
+写清楚的话，应该先介绍几个结构体，然后再往下讲。
+
+其中伙伴算法和slab高速缓存都在物理内存映射区分配物理内存，而vmalloc机制则在高端内存映射区分配物理内存。
+
+内核地址来个偏移，就映射到用户空间去了。
+alloc_pages()和alloc_page()
+
+缺页异常
+另外，事实上，在每个进程创建加载时，内核只是为进程“创建”了虚拟内存的布局，具体就是初始化进程控制表中内存相关的链表，
+实际上并不立即就把虚拟内存对应位置的程序数据和代码（比如.text .data段）拷贝到物理内存中，
+只是建立好虚拟内存和磁盘文件之间的映射就好（叫做存储器映射），等到运行到对应的程序时，才会通过缺页异常，来拷贝数据。
+还有进程运行过程中，要动态分配内存，比如malloc时，也只是分配了虚拟内存，即为这块虚拟内存对应的页表项做相应设置，
+当进程真正访问到此数据时，才引发缺页异常。
+
+
+可以认为虚拟空间都被映射到了磁盘空间中，（事实上也是按需要映射到磁盘空间上，通过mmap），
+并且由页表记录映射位置，当访问到某个地址的时候，通过页表中的有效位，可以得知此数据是否在内存中，
+如果不是，则通过缺页异常，将磁盘对应的数据拷贝到内存中，如果没有空闲内存，则选择牺牲页面，替换其他页面。
+
+mmap是用来建立从虚拟空间到磁盘空间的映射的，可以将一个虚拟空间地址映射到一个磁盘文件上，
+当不设置这个地址时，则由系统自动设置，函数返回对应的内存地址（虚拟地址），
+当访问这个地址的时候，就需要把磁盘上的内容拷贝到内存了，
+然后就可以读或者写，最后通过manmap可以将内存上的数据换回到磁盘，
+也就是解除虚拟空间和内存空间的映射，这也是一种读写磁盘文件的方法，也是一种进程共享数据的方法 共享内存
+
+
+
+
+IA32架构中内核虚拟地址空间只有1GB大小（从3GB到4GB），因此可以直接将1GB大小的物理内存（即常规内存）映射到内核地址空间，
+但超出1GB大小的物理内存（即高端内存）就不能映射到内核空间。为此，内核采取了下面的方法使得内核可以使用所有的物理内存。
+1).高端内存不能全部映射到内核空间，也就是说这些物理内存没有对应的线性地址。
+不过，内核为每个物理页框都分配了对应的页框描述符，所有的页框描述符都保存在mem_map数组中，
+因此每个页框描述符的线性地址都是固定存在的。内核此时可以使用alloc_pages()和alloc_page()来分配高端内存，
+因为这些函数返回页框描述符的线性地址。
+ 2).内核地址空间的后128MB专门用于映射高端内存，否则，没有线性地址的高端内存不能被内核所访问。
+ 这些高端内存的内核映射显然是暂时映射的，否则也只能映射128MB的高端内存。
+ 当内核需要访问高端内存时就临时在这个区域进行地址映射，使用完毕之后再用来进行其他高端内存的映射。
+由于要进行高端内存的内核映射，因此直接能够映射的物理内存大小只有896MB，该值保存在high_memory中。内核地址空间的线性地址区间如下图所示：
