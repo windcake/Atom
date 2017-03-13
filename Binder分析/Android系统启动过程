@@ -1,0 +1,70 @@
+
+
+http://ticktick.blog.51cto.com/823160/1659473
+每一个由init直接启动的本地服务都是一个独立的Linux进程，
+在系统启动以后，我们通过adb shell命令进入手机后，输入top命令就可以查看到这些本地进程的存在
+
+这些Android服务并没有各种运行在独立的进程中，它们由SystemServer以线程的方式创建，
+所以都运行在同一个进程中，即SystemServer进程中。
+
+init是Linux用户空间的第一个进程,Kernel启动后会调用/system/core/init/Init.cpp的main()方法.
+```
+int main(int argc, char** argv) {
+...
+  init_parse_config_file("/init.rc"); //解析init.rc文件
+
+      //执行rc文件中触发器为 on early-init的语句
+      action_for_each_trigger("early-init", action_add_queue_tail);
+      //执行rc文件中触发器为 on init的语句
+      action_for_each_trigger("init", action_add_queue_tail);
+      //执行rc文件中触发器为 on late-init的语句
+      action_for_each_trigger("late-init", action_add_queue_tail);
+...
+
+}
+
+```
+init.rc文件是系统配置脚本文件
+如下配置写明了zygote的配置
+
+```
+service zygote /system/bin/app_process -Xzygote /system/bin --zygote --start-system-server
+    class main //伴随着main class的启动而启动
+    socket zygote stream 660 root system //创建socket
+    onrestart write /sys/android_power/request_state wake
+    onrestart write /sys/power/state on
+    onrestart restart media  //当zygote重启时,则会重启media
+    onrestart restart netd  // 当zygote重启时,则会重启netd
+```
+解析到这些脚本之后，就会经过一系列调用，来启动zygote。
+其中最后一个调用节点是init中的service_start。
+
+在这个函数下会调用fork和execv方法，用来创建和执行一个新的进程。
+
+所以说由init启动的服务都在不同的进程里
+
+同zygote一起启动的服务，还有一个比较重要的servicemanager
+它是Bindr通信的核心
+
+```
+service servicemanager /system/bin/servicemanager
+    class core
+    user system
+    group system
+    critical
+    onrestart restart healthd
+    onrestart restart zygote
+    onrestart restart media
+    onrestart restart surfaceflinger
+    onrestart restart drm
+```
+
+当Zygote进程启动后, 便会执行到frameworks/base/cmds/app_process/App_main.cpp文件的main()方法.
+
+在main方法里调用了runtime的start函数
+在这里面调用启动虚拟机的函数
+startVm
+和注册Android方法的函数
+startReg
+然后调用到ZygoteInit.java
+在ZygoteInit的main函数中调用了startSystemServer方法

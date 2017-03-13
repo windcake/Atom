@@ -1,0 +1,9 @@
+
+
+SystemService的全局变量
+private PowerManagerService mPowerManagerService;
+private ActivityManagerService mActivityManagerService;
+private DisplayManagerService mDisplayManagerService;
+private PackageManagerService mPackageManagerService;
+private PackageManager mPackageManager;
+private ContentResolver mContentResolver;
