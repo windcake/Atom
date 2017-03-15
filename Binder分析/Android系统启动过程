@@ -244,6 +244,14 @@ Lifecycle内部类继承自SystemService，所以可以添加进去
 private final ArrayList<SystemService> mServices = new ArrayList<SystemService>();
 ```
 
+另外mActivityManagerService.setSystemProcess()方法内部调用了
+```
+ ServiceManager.addService(Context.ACTIVITY_SERVICE, this, true);
+```
+用以向ServiceManager注册自己，
+Context.ACTIVITY_SERVICE的值的字符串activity
+
+
 在这里启动了一众Android核心的Service，也就是JAVA世界的Service。
 但是这些Service运行在哪个进程里呢，和VM又是什么关系呢？
 
