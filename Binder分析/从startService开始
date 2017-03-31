@@ -47,7 +47,7 @@ static public IActivityManager getDefault() {
     }
 ```
 ```
-
+private static final Singleton<IActivityManager> gDefault = new Singleton<IActivityManager>() {
 protected IActivityManager create() {
             IBinder b = ServiceManager.getService("activity");
 
@@ -55,7 +55,30 @@ protected IActivityManager create() {
 
             return am;
         }
+      }；
 ```
+```
+
+public abstract class Singleton<T> {
+    private T mInstance;
+
+    protected abstract T create();
+
+    public final T get() {
+        synchronized (this) {
+            if (mInstance == null) {
+                mInstance = create();
+            }
+            return mInstance;
+        }
+    }
+}
+
+````
+
+
+
+
 ```
 static public IActivityManager asInterface(IBinder obj) {
         if (obj == null) {
@@ -71,9 +94,9 @@ static public IActivityManager asInterface(IBinder obj) {
     }
 ```
 
-经过以上运作 mRemote 被赋值成了ServiceManager.getService("activity")返回的值。
-
-最终get()返回了一个ActivityManagerProxy对象，它是ActivityManagerNative的内部类，startService
+经过以上运作 在ActivityManagerProxy构造方法中的mRemote 被赋值成了ServiceManager.getService("activity")返回的值。
+Java层的ServiceManager
+最终get()返回了一个ActivityManagerProxy对象，也就是getDefault方法的返回值。它是ActivityManagerNative的内部类，startService
 方法如下
 ```
 public ComponentName startService(IApplicationThread caller, Intent service,
@@ -99,6 +122,9 @@ public ComponentName startService(IApplicationThread caller, Intent service,
 把数据封装好之后，调用了mRemote的transact方法，那么mRemote是什么呢？
 
 我们知道它就是ServiceManager.getService("activity")，好看一下这个方法
+
+/frameworks/base/core/java/android/os/ServiceManager.java
+
 ```
 public static IBinder getService(String name) {
         try {
@@ -106,6 +132,7 @@ public static IBinder getService(String name) {
             if (service != null) {
                 return service;
             } else {
+              // 返回一个对象，然后再调用这个对象的getService方法。
                 return getIServiceManager().getService(name);
             }
         } catch (RemoteException e) {
@@ -153,5 +180,56 @@ static public IServiceManager asInterface(IBinder obj)
 ```
 public static final native IBinder getContextObject();
 ```
-是个native方法
+是个native方法，它的注释是：
+
+返回全局的系统的context，它通常是一个IServiceManager的实现类，可以用来查询其它的services。
+它是不是就是
+```
+ProcessState::self()->getContextObject(NULL));
+```
+
+
+```
+/**
+     * Return the global "context object" of the system.  This is usually
+     * an implementation of IServiceManager, which you can use to find
+     * other services.
+     */
+```
+它定义在
+/frameworks/base/core/jni/android_util_Binder.cpp
+果然见到了一个熟悉的身影
+
+```
+static jobject android_os_BinderInternal_getContextObject(JNIEnv* env, jobject clazz)
+{
+    sp<IBinder> b = ProcessState::self()->getContextObject(NULL);
+    return javaObjectForIBinder(env, b);
+}
+
+```
+
+也就是说mRemote类被赋值为getContextObject(NULL)，啊哈，传null的话，还记得么，就是 IBinder（0）；
+也就是0号引用了。
+
+接下来该调用ServiceManagerProxy的getService方法了，如下：
+/frameworks/base/core/java/android/os/ServiceManagerNative.java
+```
+public IBinder getService(String name) throws RemoteException {
+        Parcel data = Parcel.obtain();
+        Parcel reply = Parcel.obtain();
+        data.writeInterfaceToken(IServiceManager.descriptor);
+        data.writeString(name);
+        mRemote.transact(GET_SERVICE_TRANSACTION, data, reply, 0);
+        IBinder binder = reply.readStrongBinder();
+        reply.recycle();
+        data.recycle();
+        return binder;
+    }
+```
+mRemote.transact(GET_SERVICE_TRANSACTION, data, reply, 0);
+也就是调用了0号引用的transact的方法。
+
+
+
 到这里，回顾一下，我们当前正在寻找ServiceManager.getService("activity")的返回值。

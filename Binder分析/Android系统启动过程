@@ -1,12 +1,5 @@
 
 
-http://ticktick.blog.51cto.com/823160/1659473
-每一个由init直接启动的本地服务都是一个独立的Linux进程，
-在系统启动以后，我们通过adb shell命令进入手机后，输入top命令就可以查看到这些本地进程的存在
-
-这些Android服务并没有各种运行在独立的进程中，它们由SystemServer以线程的方式创建，
-所以都运行在同一个进程中，即SystemServer进程中。
-
 init是Linux用户空间的第一个进程,Kernel启动后会调用/system/core/init/Init.cpp的main()方法.
 ```
 int main(int argc, char** argv) {
@@ -22,8 +15,6 @@ int main(int argc, char** argv) {
 ...
 
 }
-在这里会启动一众本地服务
-
 ```
 init.rc文件是系统配置脚本文件
 如下配置写明了zygote的配置
@@ -41,13 +32,13 @@ onrestart restart netd
 
 解析到这些脚本之后，就会经过一系列调用，来启动zygote。
 其中最后一个调用节点是init中的service_start。
-
 在这个函数下会调用fork和execv方法，用来创建和执行一个新的进程。
 
 所以说由init启动的服务都在不同的进程里
 
 同zygote一起启动的服务，还有一个比较重要的ServiceManager
-它是Bindr通信的核心
+以及一众本地服务
+ServiceManager是Bindr通信的核心
 
 ```
 service servicemanager /system/bin/servicemanager
