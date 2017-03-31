@@ -94,9 +94,17 @@ static public IActivityManager asInterface(IBinder obj) {
     }
 ```
 
+<<<<<<< HEAD
 经过以上运作 在ActivityManagerProxy构造方法中的mRemote 被赋值成了ServiceManager.getService("activity")返回的值。
 Java层的ServiceManager
 最终get()返回了一个ActivityManagerProxy对象，也就是getDefault方法的返回值。它是ActivityManagerNative的内部类，startService
+=======
+经过以上运作 mRemote 被赋值成了ServiceManager.getService("activity")返回的值。
+在Android系统启动过程这篇文章里，我们分析过ServiceManager.addService("activity")。
+
+
+最终get()返回了一个ActivityManagerProxy对象，它是ActivityManagerNative的内部类，startService
+>>>>>>> e49c4f724cd22ed8b02925b23119832b06cb36c2
 方法如下
 ```
 public ComponentName startService(IApplicationThread caller, Intent service,
@@ -233,3 +241,9 @@ mRemote.transact(GET_SERVICE_TRANSACTION, data, reply, 0);
 
 
 到这里，回顾一下，我们当前正在寻找ServiceManager.getService("activity")的返回值。
+
+
+
+
+
+关于
