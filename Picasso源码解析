@@ -1,5 +1,7 @@
 
 
+## 使用
+Picasso.with(this).load(url).into(imageview);
 
 ## with方法
 
@@ -16,8 +18,47 @@ public static Picasso with(Context context) {
   }
 
 ```
+## build方法
+```
+public Picasso build() {
+      Context context = this.context;
+默认是OkHttp3Downloader
+      if (downloader == null) {
+        downloader = new OkHttp3Downloader(context);
+      }
+
+      if (cache == null) {
+        cache = new LruCache(context);
+      }
+      if (service == null) {
+        service = new PicassoExecutorService();
+      }
+      if (transformer == null) {
+        transformer = RequestTransformer.IDENTITY;
+      }
+
+      Stats stats = new Stats(cache);
+
+      Dispatcher dispatcher = new Dispatcher(context, service, HANDLER, downloader, cache, stats);
+
+      return new Picasso(context, dispatcher, cache, listener, transformer, requestHandlers, stats,
+          defaultBitmapConfig, indicatorsEnabled, loggingEnabled);
+    }
+```
+
 单例模式，返回单例对象。
 这个单例对象是通过build模式建造的。
+
+## load
+然后调用了Picasso的load方法，Load方法的不同重载都调用了
+
+```
+public RequestCreator load(Uri uri) {
+   return new RequestCreator(this, uri, 0);
+ }
+```
+
+
 
 Picasso这样使用Handler
 static final Handler HANDLER = new Handler(Looper.getMainLooper())
@@ -25,3 +66,30 @@ static final Handler HANDLER = new Handler(Looper.getMainLooper())
 
 JAVA的异常也需要了解一下
 OKHttp的拦截器是什么
+Uri是什么
+
+Picasso做了组装工作
+通过load方法new了一个RequestCreator
+RequestCreator的into方法会有如下操作
+```
+Action action =new ImageViewAction(picasso, target, request, memoryPolicy, networkPolicy, errorResId,errorDrawable, requestKey, tag, callback, noFade);
+picasso.enqueueAndSubmit(action);
+```
+也就是封装一个action提交上去
+在Picasso类里最终是调用的dispatcher的方法
+```
+void submit(Action action) {
+   dispatcher.dispatchSubmit(action);
+ }
+```
+dispatcher在build方法里初始化的。
+最后调到dispatcher的performSubmit方法
+在这个方法里会new一个BitmapHunter，它实现了Runnable接口。
+然后调用了线程池的 service.submit(hunter) 方法
+就会去执行BitmapHunter里的run方法
+run方法会调用hunt方法
+
+
+1.Picasso默认没有配磁盘缓存 只配了内存缓存LRUCAHE
+2.Picasso右上角根据环境不同颜色变化是怎么做到的？
+3.如果多个ImangeView
