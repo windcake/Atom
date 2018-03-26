@@ -24,10 +24,3 @@ adb shell dumpsys activity
 adb发广播
 adb shell am broadcast -a com.android.settings.UPDATE_PROXY
 
-
-
-关键字紫 c66cad
-方法名兰 5b8ea8
-变量红  e06c75
-
-0c96d6

@@ -1,6 +1,0 @@
-
-
-1. DuoMeiDaiLoginMy类的onCreate方法里Const.activityList.add(DuoMeiDaiLoginMy.this);
-而这个list是静态的，静态属性的生命周期和APP一样长，会在整个APP的生命周期一直引用这个类，就会导致泄漏。
-
-2. 短生命周期的和长生命
